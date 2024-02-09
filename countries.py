@@ -1,5 +1,5 @@
+#https://w3.unece.org/PXWeb/ru/TableDomains/
 import time
-
 import requests
 from requests.adapters import HTTPAdapter
 import json
@@ -271,7 +271,7 @@ def load_courses(st_date):
         if not ok:
             print(status)
     else:
-        print(str(response.status_code))
+        print(response.status_code, response.text)
 
 
 def define_id_countries(countries):
@@ -520,7 +520,7 @@ def load_countries():
     return countries
 
 
-def make_history_UN(filename, param_name):
+def make_history_un(filename, param_name):
     countries = load_countries()
     token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
     if not is_ok:
@@ -549,70 +549,11 @@ def make_history_UN(filename, param_name):
                 st_query += "select {schema}.pw_his('{param_name}', '{date}', '{country_id}', {value});".format(
                     param_name=param_name, date=st_dt, country_id=country_id, value=value, schema=config.SCHEMA
             )
-        answer, ok, status = common.send_rest(
-            'v1/NSI/script/execute', 'PUT', st_query, lang='en', token_user=token)
-        if not ok:
-            print(status)
-
-
-def make_history_text(filename, param_name):
-    def slave(name):
-        for unit in list_values:
-            if unit['name'] == name:
-                return unit
-
-    countries = load_countries()
-    token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
-    if not is_ok:
-        return
-    if countries is None:
-        return
-    answer = get_his_text(filename)  # прочитать файл с информацией в .txt
-    if answer is None:
-        return
-    list_values = list()
-    for data in answer:
-        un = data.split('\t')
-        if len(un) < 4:
-            continue
-        name = un[1]
-        name = name.replace('Кыргызстан', 'Киргизия')
-        name = name.replace('Республика Молдова', 'Молдова')
-        year = un[2]
-        value = un[3]
-        if value and value != '..':
-            param = slave(name)
-            if param is None:
-                ident = None
-                for country in countries:
-                    if country['name_rus'] == name or country['official_rus'] == name or \
-                            name in country['official_rus'] or name in country['name_rus']:
-                        ident = country['id']
-                        break
-                if ident:
-                    param = dict()
-                    param['name'] = name
-                    param['id'] = ident
-                    param['years'] = []
-                    param['values'] = []
-                    list_values.append(param)
-                else:
-                    print(name)
-            if param:
-                param['years'].append(year)
-                param['values'].append(value)
-    for data in list_values:
-        st_query = ''
-        for i, year in enumerate(data['years']):
-            st_dt = "{year}-01-01".format(year=year)
-            value = data['values'][i]
-            if value:
-                st_query += "select {schema}.pw_his('{param_name}', '{date}', '{country_id}', {value});".format(
-                    date=st_dt, country_id=int(data['id']), value=value, schema=config.SCHEMA, param_name=param_name)
-        answer, ok, status = common.send_rest(
-            'v1/NSI/script/execute', 'PUT', st_query, lang='en', token_user=token)
-        if not ok:
-            print(status)
+        if st_query:
+            answer, ok, status = common.send_rest(
+                'v1/NSI/script/execute', 'PUT', st_query, lang='en', token_user=token)
+            if not ok:
+                print(answer, st_query)
 
 
 def get_his_numbeo(filename):
