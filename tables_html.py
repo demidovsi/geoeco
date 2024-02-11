@@ -104,3 +104,15 @@ def make_numbeo_salary(index, param_name):
                 'v1/NSI/script/execute', 'PUT', st_query, lang='en', token_user=token)
             if not ok:
                 print(answer)
+
+
+def load_trading(url):
+    session = requests.Session()
+    session.mount(url, http_adapter)
+    r = session.get(url, timeout=(100, 100))
+    if r.ok:
+        lws = BeautifulSoup(r.text, 'html.parser').\
+            find_all('table', class_='stripe row-border order-column compact')[0].\
+            find_all('tbody')[0].text.split('\n')
+    else:
+        print(r.text)

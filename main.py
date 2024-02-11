@@ -11,6 +11,7 @@ import bigmac
 import json
 import time
 import tables_html
+import tables_csv
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -115,7 +116,10 @@ if __name__ == '__main__':
     # tables_html.make_numbeo_salary(105, 'av_salary_net')  # среднемесячная зарплата (дол) после налогов
     # tables_html.make_numbeo_salary(106, 'mortage_per')  # Процентная ставка по ипотеке % на 20 лет (города)
     # tables_html.make_numbeo_salary(101, 'price_sm_aoc')  # Цена квадратного метра жилья не в центре города
-    tables_html.make_numbeo_salary(100, 'price_sm_acc')  # Цена квадратного метра жилья в центре города
+    # tables_html.make_numbeo_salary(100, 'price_sm_acc')  # Цена квадратного метра жилья в центре города
+    # tables_html.make_numbeo_salary(11, 'eggs')  # Цена 12 яиц (регуляр)
+    # tables_html.make_numbeo_salary(7, 'water')  # Цена 0.33 литра воды (ресторан)
+    # tables_html.make_numbeo_salary(13, 'water15')  # Цена 1.5 литра воды (регуляр)
 
     # cities.load_cities_html("https://www.statdata.ru/largestcities_world")  # список крупнейших городов
 
@@ -127,6 +131,20 @@ if __name__ == '__main__':
     # cities.make_form_government('source/Формы правления государств.txt')  # формы государства
     # cities.make_type_government('source/Формы государственного устройства.txt')  # типы государства
 
-    # countries.make_history_numbeo('source/water.json', 'water')  # Цена 1.5 литра воды (регуляр)
-    # countries.make_history_numbeo('source/eggs.json', 'eggs')  # Цена 12 яиц (регуляр)
-    # countries.load_courses('2024-02-07')  # загрузка курсов валюты стран за указанные сутки
+    # countries.load_courses('2024-02-10')  # загрузка курсов валюты стран за указанные сутки
+
+    # Общий прирост населения
+    # tables_csv.load_inform('source/ourworldindata/population-change.csv', 'population_change', index_value=2)
+    # tables_csv.load_inform('source/ourworldindata/population.csv', 'pops', index_value=2)  # Общее население
+    # tables_csv.load_inform('source/ourworldindata/cost-healthy-diet.csv', 'cost_hd', index_code=1, index_year=2,
+    #                        index_value=3)  # Суточная стоимость здорового питания (дол)
+    # tables_csv.load_inform('source/ourworldindata/human-development-index.csv', 'hdi', index_code=1, index_year=2,
+    #                        index_value=3)  # Индекс человеческого развития
+    # tables_csv.load_inform('source/ourworldindata/air-passengers-carried.csv', 'air_pass_carry', index_code=1, index_year=2,
+    #                        index_value=3)  # Количество перевезенных авиапассажиров
+    # tables_csv.load_inform('source/ourworldindata/tourism-gdp-proportion-of-total-gdp.csv', 'tourism_gdp_per',
+    #                        index_code=1, index_year=2, index_value=3)  # Количество перевезенных авиапассажиров
+    tables_csv.load_inform('source/ourworldindata/average-length-of-stay.csv', 'av_day_of_stay',
+                           index_code=1, index_year=2, index_value=3)  # Средняя продолжительность пребывания ин. гостей
+
+    # ?????? tables_html.load_trading('https://ru.tradingeconomics.com/country-list/full-year-gdp-growth')

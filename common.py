@@ -118,3 +118,33 @@ def login(e_mail, password):
 def st_today():
     return str(time.gmtime().tm_year) + '-' + str(time.gmtime().tm_mon).rjust(2, '0') + '-' + \
            str(time.gmtime().tm_mday).rjust(2, '0')
+
+
+def get_country_id(name, countries, code=None):
+    country_id = None
+    if code is None:
+        name = name.replace(' (China)', '').replace('Us', 'United States')
+        if name == 'Congo':
+            name = 'DR Congo'
+        if name == 'Democratic Republic of Congo':
+            name = 'DR Congo'
+        if name == "Cote d'Ivoire":
+            name = 'Ivory Coast'
+        if name == "Curacao":
+            name = 'Curaçao'
+        if name == "East Timor":
+            name = 'Восточный Тимор'
+        for country in countries:
+            if name.upper() in [country['sh_name'].upper(), country['official'].upper(), country['name_rus'],
+                                country['official_rus']]:
+                country_id = country['id']
+                return country_id
+        if country_id is None:
+            print('absent name', name)
+    else:
+        for country in countries:
+            if code == country['code']:
+                country_id = country['id']
+                return country_id
+        if country_id is None:
+            print('absent code', code, 'name', name)
