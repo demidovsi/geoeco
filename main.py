@@ -5,6 +5,7 @@
 # https://restcountries.com/v3.1/all
 # https://api.worldbank.org/v2/country/all/indicator/NY.ADJ.NNTY.KD.ZG?format=json&page=1&date=2022&per_page=10
 # https://ru.tradingeconomics.com/country-list/personal-income-tax-rate
+import socket
 import common
 import countries
 import numbeo
@@ -15,6 +16,7 @@ import government
 import bigmac
 import json
 import time
+import config
 import tables_html
 import tables_csv
 import provinces
@@ -27,6 +29,9 @@ from requests.utils import DEFAULT_CA_BUNDLE_PATH
 import wbgapi as wb
 import pandas as pd
 import wikipedia
+import trafaret_thread
+
+version = '1.0.1 2024-03-02'
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -95,10 +100,25 @@ if __name__ == '__main__':
     #     print(row)
     # wordbank.load_data('FR.INR.DPST', 'deposit_rate')
     # wordbank.import_indicators()
-    wordbank.import_data('FR.INR.LEND')
+    # wordbank.import_data('FR.INR.LEND')
     # wordbank.load_data('EP.PMP.SGAS.CD', 'gasoline_price')
     # 'NY.GNP.PCAP.PP.CD' = gnp_person
     # tradingeconomic.load_data_html('social-security-rate-for-employees')
     # turkey.sale_foreign_tourists(25)
     # wikipedia.get_corruption_index()
     # tradingeconomic.load_data_html('home-ownership-rate')
+
+    # country, city, is_ok = common.define_guest(socket.gethostbyname(socket.gethostname()), False)
+
+    common.write_log_db(
+        'START', 'WebParser', 'Старт сервиса подкачки статистической информации \n' +
+        '; version: ' + version +
+        '; host: ' + config.URL +
+        '; schema: ' + config.SCHEMA,
+        file_name=common.get_computer_name()
+    )
+
+    wordbank.obj = wordbank.Wb('Всемирный банк', 'wb')
+    wordbank.obj.start()
+    while True:
+        time.sleep(5)

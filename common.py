@@ -121,7 +121,13 @@ def st_today():
            str(time.gmtime().tm_mday).rjust(2, '0')
 
 
-def get_country_id(name, countries, code=None):
+def st_now():
+    return str(time.gmtime().tm_year) + '-' + str(time.gmtime().tm_mon).rjust(2, '0') + '-' + \
+           str(time.gmtime().tm_mday).rjust(2, '0') + ' ' +\
+           str(time.gmtime().tm_hour).rjust(2, '0') + ':' + str(time.gmtime().tm_min).rjust(2, '0') + ':00'
+
+
+def get_country_id(name, countries, code=None, pr=True):
     try:
         if code is None:
             name = name.strip().replace(' (China)', '').replace('Us', 'United States').replace('US', 'United States'). \
@@ -170,12 +176,14 @@ def get_country_id(name, countries, code=None):
                 if name.upper() in [country['sh_name'].upper(), country['official'].upper(), country['name_rus'].upper(),
                                     country['official_rus'].upper()]:
                     return country['id']
-            print('absent name', name)
+            if pr:
+                print('absent name', name)
         else:
             for country in countries:
                 if code == country['code']:
                     return country['id']
-            print('absent code', code, 'name', name)
+            if pr:
+                print('absent code', code, 'name', name)
     except Exception as er:
         print(name, f'{er}')
 
@@ -350,4 +358,25 @@ def get_computer_name():
     st = socket.gethostbyname(socket.gethostname())
     st = '' if st == '127.0.0.1' else st
     return socket.gethostname() + '; ' + st
+
+
+def define_guest(ip_text, check_simple=True):
+    if check_simple and ip_text == '127.0.0.1':
+        return '', '', True
+    headers = {"Accept": "application/json"}
+    try:
+        response = requests.request('GET', 'http://ip-api.com/json/{ip}?lang=ru'.format(ip=ip_text), headers=headers)
+    except HTTPError as err:
+        txt = f'HTTP error occurred: {err}'
+        print('ERROR', 'Ошибка запроса', txt)
+        return txt, '', False
+    try:
+        if response.ok:
+            answer = json.loads(response.text)
+            return answer['country'], answer['city'], True
+        else:
+            print('ERROR', response.text)
+            return response.text.replace('\\n', '\n'), '', False
+    except Exception as err:
+        return f"{err}", '', False
 
