@@ -49,20 +49,6 @@ def get_inform():
         print(f'{er}')
 
 
-def get_his_population(filename):
-    """
-    Прочитать файл с полной информацией сайта
-    :return: json в случае отсутствия ошибки или None
-    """
-    try:
-        f = open(filename, 'r', encoding='utf-8')
-        with f:
-            answer = f.read()
-            return json.loads(answer)
-    except Exception as er:
-        print(f'{er}')
-
-
 def get_his_text(filename):
     """
     Прочитать файл с полной информацией сайта
@@ -100,14 +86,7 @@ def load_tld():
             if unit['sh_name'] == data['sh_name']:
                 unit['id'] = data['id']  # этот суффикс будет корректироваться (на всякий случай)
                 break
-    token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
-    if is_ok:
-        url = 'v1/objects'.format(schema=config.SCHEMA)
-        params = {"schema_name": config.SCHEMA, "object_code": "tld", "values": tld}
-        # запись суффиксов
-        answer, is_ok, status_response = common.send_rest(url, 'PUT', params=params, token_user=token)
-        if not is_ok:
-            print(str(answer))
+    common.write_objects_db('tld', tld)
 
 
 def load_languages():
@@ -138,13 +117,7 @@ def load_languages():
             if unit['code'] == data['code']:
                 unit['id'] = data['id']  # эта валюта будет корректироваться (на всякий случай)
                 break
-    token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
-    if is_ok:
-        url = 'v1/objects'.format(schema=config.SCHEMA)
-        params = {"schema_name": config.SCHEMA, "object_code": "languages", "values": languages}
-        answer, is_ok, status_response = common.send_rest(url, 'PUT', params=params, token_user=token)  # запись валют
-        if not is_ok:
-            print(str(answer))
+    common.write_objects_db('languages', languages)
 
 
 def load_currencies():
@@ -176,28 +149,22 @@ def load_currencies():
             if unit['code'] == data['code']:
                 unit['id'] = data['id']  # эта валюта будет корректироваться (на всякий случай)
                 break
+    common.write_objects_db('currencies', currencies)
+    url = 'v1/objects/{schema}/currencies'.format(schema=config.SCHEMA)
+    answer, is_ok, status_response = common.send_rest(url)  # прочитать валюты с ID
+    if not is_ok:
+        print(str(answer))
+        return
+    answer = json.loads(answer)['values']
+    params = list()
+    for data in answer:
+        params.append({'schema_name': config.SCHEMA, "object_code": "currencies", "param_code": "course",
+                       "obj_id": data['id'], 'discret_sec': 86400, "type_his": "data"})
     token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
-    if is_ok:
-        url = 'v1/objects'.format(schema=config.SCHEMA)
-        params = {"schema_name": config.SCHEMA, "object_code": "currencies", "values": currencies}
-        answer, is_ok, status_response = common.send_rest(url, 'PUT', params=params, token_user=token)  # запись валют
-        if is_ok:
-            url = 'v1/objects/{schema}/currencies'.format(schema=config.SCHEMA)
-            answer, is_ok, status_response = common.send_rest(url)  # прочитать валюты с ID
-            if not is_ok:
-                print(str(answer))
-                return
-            answer = json.loads(answer)['values']
-            params = list()
-            for data in answer:
-                params.append({'schema_name': config.SCHEMA, "object_code": "currencies", "param_code": "course",
-                               "obj_id": data['id'], 'discret_sec': 86400, "type_his": "data"})
-            answer, is_ok, status_response = common.send_rest(
-                'v1/MDM/his/link', directive='PUT', params=params, token_user=token)
-            if not is_ok:
-                print(str(answer))
-        else:
-            print(str(answer))
+    answer, is_ok, status_response = common.send_rest(
+        'v1/MDM/his/link', directive='PUT', params=params, token_user=token)
+    if not is_ok:
+        print(str(answer))
 
 
 def load_list_countries():
@@ -223,13 +190,7 @@ def load_list_countries():
             if unit['code'] == data['code']:
                 unit['id'] = data['id']  # эта страна будет корректироваться (на всякий случай)
                 break
-    token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
-    if is_ok:
-        url = 'v1/objects'.format(schema=config.SCHEMA)
-        params = {"schema_name": config.SCHEMA, "object_code": "list_countries", "values": list_countries}
-        answer, is_ok, status_response = common.send_rest(url, 'PUT', params=params, token_user=token)  # запись стран
-        if not is_ok:
-            print(str(answer))
+    common.write_objects_db('list_countries', list_countries)
 
 
 def load_courses(st_date):
@@ -265,11 +226,7 @@ def load_courses(st_date):
                 st_query = st_query + "select {schema}.pw_his_currencies('{date}', '{currency_id}', {value});".format(
                     date=st_dt, currency_id=currency_id, value=1 / value, schema=config.SCHEMA
                 )
-        token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
-        answer, ok, status = common.send_rest(
-            'v1/NSI/script/execute', 'PUT', st_query, lang='en', token_user=token)
-        if not ok:
-            print(status)
+        common.write_script_db(st_query)
     else:
         print(response.status_code, response.text)
 
@@ -474,13 +431,8 @@ def make_countries():
     t0 = time.time()
 
     if is_ok:
-        url = 'v1/objects'.format(schema=config.SCHEMA)
-        params = {"schema_name": config.SCHEMA, "object_code": "countries", "values": countries}
-        answer, is_ok, status_response = common.send_rest(url, 'PUT', params=params, token_user=token)  # запись стран
+        common.write_objects_db('countries', countries)
         print(str_time(time.time() - t0), "\tPUT countries", str_time(time.time() - t1), flush=True)
-        if not is_ok:
-            print(str(answer))
-            return
         # теперь надо записать континенты
         t0 = time.time()
         set_relation('countries', 'continent', countries, continents, 'relation_continents', token)
@@ -518,87 +470,3 @@ def load_countries():
         return
     countries = json.loads(countries)
     return countries
-
-
-def make_history_un(filename, param_name):
-    countries = load_countries()
-    token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
-    if not is_ok:
-        return
-    if countries is None:
-        return
-    answer = get_his_population(filename)  # прочитать файл с информацией (https://w3.unece.org/PXWeb/ru/Table?IndicatorCode=25)
-    if answer is None:
-        return
-    for data in answer['DataTable']:
-        code = data['Country']['Alpha3Code']
-        years = data['Periods']
-        values = data['Values']
-        country_id = None
-        for country in countries:
-            if country['code'] == code:
-                country_id = country['id']
-                break
-        if country_id is None:
-            continue
-        st_query = ''
-        for i, year in enumerate(years):
-            st_dt = "{year}-01-01".format(year=year)
-            value = values[i]
-            if value:
-                st_query += "select {schema}.pw_his('{param_name}', '{date}', '{country_id}', {value});".format(
-                    param_name=param_name, date=st_dt, country_id=country_id, value=value, schema=config.SCHEMA
-            )
-        if st_query:
-            answer, ok, status = common.send_rest(
-                'v1/NSI/script/execute', 'PUT', st_query, lang='en', token_user=token)
-            if not ok:
-                print(answer, st_query)
-
-
-def get_his_numbeo(filename):
-    """
-    Прочитать файл с информацией по воде и т.п.
-    (view-source:https://www.numbeo.com/cost-of-living/prices_by_country.jsp?displayCurrency=USD&itemId=13)
-    :return: массив строк
-    """
-    try:
-        f = open(filename, 'r', encoding='utf-8')
-        with f:
-            answer = f.read()
-            return json.loads(answer)
-    except Exception as er:
-        print(f'{er}')
-
-
-def make_history_numbeo(filename, param_name):
-    countries = load_countries()
-    token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
-    if not is_ok:
-        return
-    if countries is None:
-        return
-    answer = get_his_numbeo(filename)  # прочитать файл с водой
-    if answer is None:
-        return
-    date = answer['date']
-    answer = answer['data']
-    st_query = ''
-    for key in answer:
-        country_id = None
-        st = key.replace(' (China)','')
-        for country in countries:
-            if st.upper() in [country['sh_name'].upper(), country['official'].upper()]:
-                country_id = country['id']
-                break
-        if country_id is None:
-            print(key)
-            continue
-        value = answer[key]
-        if value:
-            st_query += "select {schema}.pw_his('{param_name}', '{date}', '{country_id}', {value});".format(
-                date=date, country_id=country_id, value=value, schema=config.SCHEMA, param_name=param_name)
-    answer, ok, status = common.send_rest(
-        'v1/NSI/script/execute', 'PUT', st_query, lang='en', token_user=token)
-    if not ok:
-        print(status)

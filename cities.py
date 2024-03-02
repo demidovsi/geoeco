@@ -42,47 +42,8 @@ def get_st_sql(st_sql, date, city_id, value, param_name):
     return st_sql
 
 
-def make_form_government(filename):
-    countries = c_countries.load_countries()
-    token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
-    if not is_ok:
-        return
-    if countries is None:
-        return
-    answer = get_his_text(filename)  # прочитать файл с информацией в .txt
-    if answer is None:
-        return
-    values = list()
-    for data in answer:
-        if data.strip() == '':
-            continue
-        unit = data.strip().split(';')
-        name_country = unit[1]
-        name_government = unit[2]
-        country_id = None
-        for country in countries:
-            if name_country == country['name_rus'] or name_country == country['sh_name'] or \
-                    name_country == country['official_rus']:
-                country_id = country['id']
-                params = dict()
-                params['id'] = country_id
-                params['government'] = name_government
-                values.append(params)
-                break
-        if country_id is None:
-            print(name_country)
-
-    params = {"schema_name": config.SCHEMA, "object_code": "countries", "values": values}
-    ans, ok, status_result = common.send_rest('v1/objects', 'PUT', params=params, token_user=token)
-    if not ok:
-        print(ans)
-
-
 def make_type_government(filename):
     countries = c_countries.load_countries()
-    token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
-    if not is_ok:
-        return
     if countries is None:
         return
     answer = get_his_text(filename)  # прочитать файл с информацией в .txt
@@ -107,11 +68,7 @@ def make_type_government(filename):
                 break
         if country_id is None:
             print(name_country)
-
-    params = {"schema_name": config.SCHEMA, "object_code": "countries", "values": values}
-    ans, ok, status_result = common.send_rest('v1/objects', 'PUT', params=params, token_user=token)
-    if not ok:
-        print(ans)
+    common.write_objects_db('countries', values)
 
 
 def load_cities_html(url):
@@ -129,9 +86,8 @@ def load_cities_html(url):
             data = data.replace('</td>', ';').replace('<td>', '').replace('</tr>', '').replace('N / A', '')
             lws[i] = data
             unit = data.strip().split(';')
-            name_city = unit[1]
-            name_country = unit[2].replace('США', 'Соединённые Штаты Америки').\
-                replace('ДР Конго', 'Демократическая Республика Конго').replace('Саудов. Аравия', 'Саудовская Аравия')
+            name_city = unit[1].replace('<strong>', '').replace('</strong>', '')
+            name_country = common.check_country_name(unit[2])
             population_2018 = unit[3].replace(' ', '')
             population = None
             area = None
@@ -140,36 +96,27 @@ def load_cities_html(url):
             if len(unit) >= 6:
                 area = unit[5].replace(' ', '')
             # найти id страны
-            country_id = None
-            for country in countries:
-                if name_country == country['name_rus'] or name_country == country['sh_name']:
-                    country_id = country['id']
-                    params = dict()
-                    params["name_rus"] = name_city
-                    params["country"] = country_id
-                    params['population'] = population if population else population_2018
-                    params['sh_name'] = GoogleTranslator(source='ru', target='en').translate(name_city)
-                    if area:
-                        params['area'] = area
-                    for city in cities:
-                        if name_city == city['name_rus'] or name_city == city['sh_name']:
-                            params['id'] = city['id']
-                            break
-                    values.append(params)
-                    break
-            if country_id is None:
+            country_id = common.get_country_id(name_country, countries)
+            if country_id:
+                params = dict()
+                params["name_rus"] = name_city
+                params["country"] = country_id
+                params['population'] = population if population else population_2018
+                params['sh_name'] = GoogleTranslator(source='ru', target='en').translate(name_city)
+                if area:
+                    params['square'] = area
+                city_id = common.get_city_id(name_city, cities)
+                if city_id:
+                    params['id'] = city_id
+                values.append(params)
+            else:
                 print(name_country)
 
-        token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
-        params = {"schema_name": config.SCHEMA, "object_code": "cities", "values": values}
-        ans, ok, status_result = common.send_rest('v1/objects', 'PUT', params=params, token_user=token)
-        if not ok:
-            print(ans)
+        common.write_objects_db('cities', values)
         # прочитать новый список городов
         cities = load_cities()
         st_sql = ''
-        date = str(time.gmtime().tm_year) + '-' + str(time.gmtime().tm_mon).rjust(2, '0') + '-' + \
-               str(time.gmtime().tm_mday).rjust(2, '0')
+        date = str(time.gmtime().tm_year) + '-' + str(time.gmtime().tm_mon).rjust(2, '0') + '-01'
 
         for data in lws:
             if data.strip() == '':
@@ -183,16 +130,12 @@ def load_cities_html(url):
                 population = unit[4].replace(' ', '')
             if len(unit) >= 6:
                 area = unit[5].replace(' ', '')
-            for city in cities:
-                if name_city == city['name_rus'] or name_city == city['sh_name']:
-                    city_id = city['id']
-                    if population:
-                        st_sql = get_st_sql(st_sql, date, city_id, population, 'pops')
-                        st_sql = get_st_sql(st_sql, '2018-12-01', city_id, population_2018, 'pops')
-                    if area:
-                        st_sql = get_st_sql(st_sql, date, city_id, area, 'area')
-                    break
-        if st_sql:
-            ans, ok, status = common.send_rest('v1/NSI/script/execute', 'PUT', st_sql, lang='en', token_user=token)
-            if not ok:
-                print(ans)
+            city_id = common.get_city_id(name_city, cities)
+            if city_id:
+                if population:
+                    st_sql = get_st_sql(st_sql, date, city_id, population, 'pops')
+                elif population_2018:
+                    st_sql = get_st_sql(st_sql, '2018-12-01', city_id, population_2018, 'pops')
+                if area:
+                    st_sql = get_st_sql(st_sql, date, city_id, area, 'area')
+        common.write_script_db(st_sql)
