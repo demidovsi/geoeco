@@ -138,7 +138,7 @@ def import_indicators():
     common.write_objects_db('import', values)
 
 
-def import_data(indicator, param_name=None, countries=None):
+def import_data(indicator, param_name=None, countries=None, token=None):
     """
     Импорт данных по индикатору и запись их в БД. Код параметра выбирается из nsi_import.
     :param indicator:
@@ -175,7 +175,7 @@ def import_data(indicator, param_name=None, countries=None):
             if row['economy'] not in st_absent:
                 st_absent = st_absent + ', ' if st_absent else st_absent
                 st_absent += row['economy']
-    common.write_script_db(st_query)
+    common.write_script_db(st_query, token=token)
     return count, st_absent
 
 
@@ -186,7 +186,12 @@ class Wb(trafaret_thread.PatternThread):
 
     def work(self):
         super(Wb, self).work()
+        if not self.make_login():
+            return False  # не удалось сделать логин (ждем минуту)
         return self.load_list_indicators()
+
+    def get_description(self):
+        return 'Поток импорта информации из Всемирного банка'
 
     def load_list_indicators(self):
         url = "v1/select/{schema}/nsi_import?where=sh_name='{code_function}' and active".format(
@@ -203,7 +208,8 @@ class Wb(trafaret_thread.PatternThread):
                 if data['object_code'] != 'countries':
                     continue
                 t0 = time.time()
-                count_row, st_absent = import_data(data['code'], param_name=data['param_name'], countries=countries)
+                count_row, st_absent = import_data(data['code'], param_name=data['param_name'], countries=countries,
+                                                   token=self.token)
                 if count_row and count_row != 0:
                     result += count_row
                     st = data['name_rus']
@@ -213,5 +219,5 @@ class Wb(trafaret_thread.PatternThread):
                         'import', self.source, st, page=count_row, td=time.time() - t0,
                         law_id=str(index) + ' (всего=' + str(len(answer)) + ')',
                         file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
-                                  '"; param_name="' + data['param_name'] + '"')
+                                  '"; param_name="' + data['param_name'] + '"', token_admin=self.token)
         return result != 0

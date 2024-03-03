@@ -50,11 +50,11 @@ def make_history(filename, param_name):
 def load_inform():
     make_history('source/UN/Доля торговли, гост.услуг, транспорта и связи в ВВП (gdp_market).json', 'gdp_market')  # Доля торговли, гост.услуг, транспорта и связи в ВВП (%)
     make_history('source/UN/Доля строительства в ВВП (gdp_building).json', 'gdp_building')  # Доля строительства в ВВП (%)
-    make_history('source/UN/GDPP.json', 'gdpp')  # ВВП(ППС) (дол)
-    make_history('source/UN/gdp_import.json', 'gdp_import')  # Доля импорта в ВВП %
-    make_history('source/UN/gdp_export.json', 'gdp_export')  # Доля экспорта в ВВП %
-    make_history('source/UN/unemployment.json', 'unemployment')  # Уровень безработицы %
     make_history('source/UN/gdp_finance.json', 'gdp_finance')  # Доля финансовых и деловых услуг в ВВП (%)
-    make_history('source/UN/consumption.json', 'consumption')  # Расходы на конечное потребление (дол)
-    make_history('source/UN/Индекс потребительских цен.json', 'cpi')  # Индекс потребительских цен (к 2010)
     make_history('source/UN/cars1000.json', 'cars1000')  # Количество легковых автомобилей на 1000 человек
+    # make_history('source/UN/GDPP.json', 'gdpp')  # ВВП(ППС) (дол)
+    # make_history('source/UN/gdp_import.json', 'gdp_import')  # Доля импорта в ВВП %
+    # make_history('source/UN/gdp_export.json', 'gdp_export')  # Доля экспорта в ВВП %
+    # make_history('source/UN/unemployment.json', 'unemployment')  # Уровень безработицы %
+    # make_history('source/UN/consumption.json', 'consumption')  # Расходы на конечное потребление (дол)
+    # make_history('source/UN/Индекс потребительских цен.json', 'cpi')  # Индекс потребительских цен (к 2010)

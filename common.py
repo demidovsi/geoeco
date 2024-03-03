@@ -203,15 +203,18 @@ def get_city_id(name_city, cities):
     print('Absent city', name_city)
 
 
-def write_script_db(st_query):
+def write_script_db(st_query, token=None):
     if st_query:
-        token, is_ok = login('superadmin', decode('abcd', config.kirill))
-        if not is_ok:
-            print('Error login')
-            return
+        if token is None:
+            token, is_ok = login('superadmin', decode('abcd', config.kirill))
+            if not is_ok:
+                write_log_db('ERROR', 'login', str(token))
+                print('Error login')
+                return
         answer, ok, status = send_rest(
-            'v1/NSI/script/execute', 'PUT', st_query, lang='en', token_user=token)
+            'v1/execute', 'PUT', st_query, lang='en', token_user=token)
         if not ok:
+            write_log_db('ERROR', 'v1/execute', str(answer))
             print(answer)
 
 

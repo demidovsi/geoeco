@@ -88,6 +88,7 @@ def make_numbeo_salary(index, param_name):
 
 
 def make_numbeo_table(lws, year, param_name, count, i_name, i_value):
+    # годовые значения
     """
     :param lws: массив колонок строк таблицы (без шапки)
     :param year: - год информации

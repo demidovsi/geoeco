@@ -30,6 +30,7 @@ import wbgapi as wb
 import pandas as pd
 import wikipedia
 import trafaret_thread
+import clear_logs
 
 version = '1.0.1 2024-03-02'
 
@@ -42,7 +43,7 @@ if __name__ == '__main__':
     # print(os.environ["REQUESTS_CA_BUNDLE"])
 
 
-    # filename = 'source/cars1000.json'
+    # filename = 'source/UN/gdp_import1.json'
     # f = open(filename, 'r')
     # with f:
     #     answer = f.read()
@@ -120,5 +121,9 @@ if __name__ == '__main__':
 
     wordbank.obj = wordbank.Wb('Всемирный банк', 'wb')
     wordbank.obj.start()
+
+    clear_logs.obj = clear_logs.ClearLogs('Чистка лога', 'clear_logs')
+    clear_logs.obj.start()
+
     while True:
         time.sleep(5)
