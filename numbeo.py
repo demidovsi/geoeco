@@ -3,14 +3,15 @@ import common
 import config
 import cities as c_cities
 import countries as c_countries
-import tables_html
 from bs4 import BeautifulSoup
 import requests
 from requests.adapters import HTTPAdapter
 from deep_translator import GoogleTranslator
 import json
+import trafaret_thread
 
 http_adapter = HTTPAdapter(max_retries=10)
+obj = None
 
 
 def make_numbeo_crime(lws, year, param_name, count, i_name, i_value):
@@ -49,42 +50,6 @@ def make_numbeo_crime(lws, year, param_name, count, i_name, i_value):
             st_query += "select {schema}.pw_his('{param_name}', '{date}', '{country_id}', {value});".format(
                 date=date, country_id=country_id, value=value, schema=config.SCHEMA, param_name=param_name)
     common.write_script_db(st_query)
-
-
-def make_numbeo_salary(index, param_name):
-    # месячная информация
-    countries = c_countries.load_countries()
-    if countries is None:
-        return
-    token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
-    if not is_ok:
-        return
-    date = common.st_today()
-    session = requests.Session()
-    url = config.url_numbeo_cost + str(index)
-    session.mount(url, http_adapter)
-    r = session.get(url, timeout=(100, 100))
-    if r.ok:
-        st_query = ''
-        lws = BeautifulSoup(r.text, 'html.parser').\
-            find_all('table', class_='stripe row-border order-column compact')[0].find_all('tbody')[0].find_all('tr')
-        for row in lws:
-            unit = row.find_all('td')
-            name = unit[1].find('a').text
-            value = unit[2].text
-            country_id = None
-            name = name.replace(' (China)', '').replace('Us', 'United States')
-            for country in countries:
-                if name.upper() in [country['sh_name'].upper(), country['official'].upper()]:
-                    country_id = country['id']
-                    break
-            if country_id is None:
-                print('absent', name)
-                continue
-            if value:
-                st_query += "select {schema}.pw_his('{param_name}', '{date}', '{country_id}', {value});".format(
-                    date=date, country_id=country_id, value=value, schema=config.SCHEMA, param_name=param_name)
-        common.write_script_db(st_query)
 
 
 def make_numbeo_table(lws, year, param_name, count, i_name, i_value):
@@ -143,20 +108,27 @@ def make_numbeo_table(lws, year, param_name, count, i_name, i_value):
         value = lws[i + i_value]
         city_id = common.get_city_id(name_city, cities)
         if city_id and value and value != '-':
-            st_sql = c_cities.get_st_sql(st_sql, date, city_id, value, param_name)
+            st_sql = get_st_sql_cities(st_sql, date, city_id, value, param_name)
     # записать исторические данные
     common.write_script_db(st_sql)
 
 
+def get_st_sql_cities(st_sql, date, city_id, value, param_name):
+    st_sql += "select {schema}.pw_his_cities('{param_name}', '{date}', {city_id}, {value});\n". \
+        format(param_name=param_name, date=date, city_id=city_id, value=value,
+               schema=config.SCHEMA)
+    return st_sql
+
+
 def load_inform_countries():
     for year in range(2012, time.gmtime().tm_year + 1):
-        lws = tables_html.load_html(
+        lws = load_html(
             "https://www.numbeo.com/crime/rankings_by_country.jsp?title={year}".format(year=year))
         if lws:
             make_numbeo_crime(lws, year, 'crime', 3, 0, 1)  # индекс преступности
 
     for year in range(2012, time.gmtime().tm_year + 1):
-        lws = tables_html.load_html(
+        lws = load_html(
             "https://www.numbeo.com/quality-of-life/rankings_by_country.jsp?title={year}".format(year=year))
         if lws:
             make_numbeo_crime(lws, year, 'life_index', 10, 0, 1)  # Индекс качества жизни
@@ -170,7 +142,7 @@ def load_inform_countries():
             make_numbeo_crime(lws, year, 'climate_index', 10, 0, 9)  # Индекс климата
 
     for year in range(2012, time.gmtime().tm_year + 1):
-        lws = tables_html.load_html(
+        lws = load_html(
             "https://www.numbeo.com/property-investment/rankings_by_country.jsp?title={year}".format(year=year))
         if lws:
             make_numbeo_crime(lws, year, 'price_to_income', 8, 0, 1)  # цена дома к доходу (отношение)
@@ -181,20 +153,33 @@ def load_inform_countries():
             make_numbeo_crime(lws, year, 'mortgage_per_income', 8, 0, 6)  # Часть дохода для погашения ипотеки %
             make_numbeo_crime(lws, year, 'affordability_index', 8, 0, 7)  # Индекс доступности
 
-    make_numbeo_salary(105, 'av_salary_net')  # Среднемесячная зарплата (дол) после налогов
-    make_numbeo_salary(106, 'mortage_per')  # Процентная ставка по ипотеке % на 20 лет (города)
-    make_numbeo_salary(101, 'price_sm_aoc')  # Цена квадратного метра жилья не в центре города
-    make_numbeo_salary(100, 'price_sm_acc')  # Цена квадратного метра жилья в центре города
-    make_numbeo_salary(11, 'eggs')  # Цена 12 яиц (регуляр)
-    make_numbeo_salary(7, 'water')  # Цена 0.33 литра воды (ресторан)
-    make_numbeo_salary(13, 'water15')  # Цена 1.5 литра воды (регуляр)
+    # make_numbeo_salary(105, 'av_salary_net')  # Среднемесячная зарплата (дол) после налогов
+    # make_numbeo_salary(106, 'mortage_per')  # Процентная ставка по ипотеке % на 20 лет (города)
+    # make_numbeo_salary(101, 'price_sm_aoc')  # Цена квадратного метра жилья не в центре города
+    # make_numbeo_salary(100, 'price_sm_acc')  # Цена квадратного метра жилья в центре города
+    # make_numbeo_salary(11, 'eggs')  # Цена 12 яиц (регуляр)
+    # make_numbeo_salary(7, 'water')  # Цена 0.33 литра воды (ресторан)
+    # make_numbeo_salary(13, 'water15')  # Цена 1.5 литра воды (регуляр)
+
+def load_html(url):
+    session = requests.Session()
+    session.mount(url, http_adapter)
+    r = session.get(url, timeout=(100, 100))
+    if r.ok:
+        lws = BeautifulSoup(r.text, 'html.parser').\
+            find_all('table', class_='stripe row-border order-column compact')[0].\
+            find_all('tbody')[0].text.split('\n')
+        i = len(lws) - 1
+        while i >= 0:
+            if lws[i].strip() == '':
+                lws.pop(i)
+            i -= 1
+        return lws
 
 
 def load_inform_cities():
-    # крупнейшие города
-    c_cities.load_cities_html("https://www.statdata.ru/largestcities_world")  # список крупнейших городов
     for year in range(2012, time.gmtime().tm_year + 1):
-        lws = tables_html.load_html(
+        lws = load_html(
             "https://www.numbeo.com/quality-of-life/rankings.jsp?title={year}".format(year=year))
         if lws:
             make_numbeo_table(lws, year, 'life_index', 10, 0, 1)  # Индекс качества жизни
@@ -208,7 +193,7 @@ def load_inform_cities():
             make_numbeo_table(lws, year, 'climate_index', 10, 0, 9)  # Индекс климата
 
     for year in range(2012, time.gmtime().tm_year + 1):
-        lws = tables_html.load_html(
+        lws = load_html(
             "https://www.numbeo.com/property-investment/rankings.jsp?title={year}".format(year=year))
         if lws:
             make_numbeo_table(lws, year, 'price_to_income', 8, 0, 1)  # Цена дома к доходу (отношение)
@@ -220,7 +205,7 @@ def load_inform_cities():
             make_numbeo_table(lws, year, 'affordability_index', 8, 0, 7)  # Индекс доступности
 
     for year in range(2012, time.gmtime().tm_year + 1):
-        lws = tables_html.load_html(
+        lws = load_html(
             "https://www.numbeo.com/crime/rankings.jsp?title={year}".format(year=year))
         if lws:
             make_numbeo_table(lws, year, 'crime_index', 3, 0, 1)  # Индекс криминала

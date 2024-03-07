@@ -1,3 +1,5 @@
 Requests==2.31.0
+deep_translator
 xlrd
+bs4
 #aspose-cells

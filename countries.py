@@ -63,110 +63,6 @@ def get_his_text(filename):
         print(f'{er}')
 
 
-def load_tld():
-    answer = get_inform()  # прочитать файл с полной информацией
-    if answer is None:
-        return
-    tld = list()
-    for data in answer:
-        if 'tld' not in data:
-            continue
-        cur = data['tld']
-        for key in cur:
-            if key not in tld:
-                tld.append({"sh_name": key})
-    url = 'v1/objects/{schema}/tld'.format(schema=config.SCHEMA)
-    answer, is_ok, status_response = common.send_rest(url)  # прочитать существующие суффиксы (для определения ID)
-    if not is_ok:
-        print(str(answer))
-        return
-    answer = json.loads(answer)['values']
-    for data in answer:
-        for unit in tld:
-            if unit['sh_name'] == data['sh_name']:
-                unit['id'] = data['id']  # этот суффикс будет корректироваться (на всякий случай)
-                break
-    common.write_objects_db('tld', tld)
-
-
-def load_languages():
-    answer = get_inform()  # прочитать файл с полной информацией
-    if answer is None:
-        return
-    languages = list()
-    for data in answer:
-        if 'languages' not in data:
-            continue
-        cur = data['languages']
-        for key in cur.keys():
-            exist = False
-            for unit in languages:
-                if unit['code'] == key:
-                    exist = True
-                    break
-            if not exist:
-                languages.append({"code": key, "sh_name": cur[key]})
-    url = 'v1/objects/{schema}/languages'.format(schema=config.SCHEMA)
-    answer, is_ok, status_response = common.send_rest(url)  # прочитать существующие валюты (для определения ID)
-    if not is_ok:
-        print(str(answer))
-        return
-    answer = json.loads(answer)['values']
-    for data in answer:
-        for unit in languages:
-            if unit['code'] == data['code']:
-                unit['id'] = data['id']  # эта валюта будет корректироваться (на всякий случай)
-                break
-    common.write_objects_db('languages', languages)
-
-
-def load_currencies():
-    answer = get_inform()  # прочитать файл с полной информацией
-    if answer is None:
-        return
-    currencies = list()
-    for data in answer:
-        if 'currencies' not in data:
-            continue
-        cur = data['currencies']
-        for key in cur.keys():
-            exist = False
-            for unit in currencies:
-                if unit['code'] == key:
-                    exist = True
-                    break
-            if not exist:
-                currencies.append({"code": key, "sh_name": cur[key]['name'],
-                                   "symbol": cur[key]['symbol'] if 'symbol' in cur[key] else ''})
-    url = 'v1/objects/{schema}/currencies'.format(schema=config.SCHEMA)
-    answer, is_ok, status_response = common.send_rest(url)  # прочитать существующие валюты (для определения ID)
-    if not is_ok:
-        print(str(answer))
-        return
-    answer = json.loads(answer)['values']
-    for data in answer:
-        for unit in currencies:
-            if unit['code'] == data['code']:
-                unit['id'] = data['id']  # эта валюта будет корректироваться (на всякий случай)
-                break
-    common.write_objects_db('currencies', currencies)
-    url = 'v1/objects/{schema}/currencies'.format(schema=config.SCHEMA)
-    answer, is_ok, status_response = common.send_rest(url)  # прочитать валюты с ID
-    if not is_ok:
-        print(str(answer))
-        return
-    answer = json.loads(answer)['values']
-    params = list()
-    for data in answer:
-        params.append({'schema_name': config.SCHEMA, "object_code": "currencies", "param_code": "course",
-                       "obj_id": data['id'], 'discret_sec': 86400, "type_his": "data"})
-    token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
-    answer, is_ok, status_response = common.send_rest(
-        'v1/MDM/his/link', directive='PUT', params=params, token_user=token)
-    if not is_ok:
-        print(str(answer))
-
-
 def load_list_countries():
     answer = get_inform()  # прочитать файл с полной информацией
     if answer is None:
@@ -461,12 +357,18 @@ def make_countries():
         print('error', 'login')
 
 
-def load_countries():
+def load_countries(token=None):
+    """
+    Загрузка списка стран (для определения ID по имени).
+    :param token: - токен для RestAPI (для операции PUT) - опционально
+    :return: массив стран или None при ошибке чтения
+    """
     url = 'v1/select/{schema}/nsi_countries'.format(schema=config.SCHEMA)
     countries, is_ok, status_response = common.send_rest(
-        url, params={"columns": "id, code, name_rus, official_rus, sh_name, official"})
+        url, params={"columns": "id, code, name_rus, official_rus, sh_name, official, es_member"})
     if not is_ok:
         print(str(countries))
+        common.write_log_db('ERROR', 'load_countries', str(countries) + '; ' + url, token_admin=token)
         return
     countries = json.loads(countries)
     return countries
