@@ -31,6 +31,89 @@ headers = {
 }
 
 
+def prepare_countries(answer, continents):
+    result = list()
+    for data in answer:
+        if 'name' not in data:
+            continue
+        cur = data['name']
+        name_rus = ''
+        official_rus = ''
+        if 'translations' in data:
+            for key in data['translations'].keys():
+                if key == 'rus':
+                    name_rus = data['translations'][key]['common']
+                    official_rus = data['translations'][key]['official']
+                    break
+        params = {"sh_name": cur['common'], "official": cur['official'], "name_rus": name_rus,
+                  "official_rus": official_rus, "code": data["cca3"] if "cca3" in data else '',
+                  "landlocked": data["landlocked"],
+                  "start_of_week": data["startOfWeek"], "status": data["status"]}
+        if "independent" in data:
+            params["independent"] = data['independent']
+        if "unMember" in data:
+            params["un_member"] = data['unMember']
+        if 'area' in data:
+            params['area'] = data['area']
+        if 'population' in data:
+            params['population'] = data['population']
+        if 'car' in data and 'side' in data['car']:
+            params['car_side'] = data['car']['side']
+        if 'coatOfArms' in data and 'svg' in data['coatOfArms']:
+            params['coat_of_arms'] = data['coatOfArms']['svg']
+        if 'flags' in data:
+            if 'alt' in data['flags']:
+                params['flag_alt'] = data['flags']['alt']
+            if 'svg' in data['flags']:
+                params['flag_svg'] = data['flags']['svg']
+        if 'capital' in data:
+            st = ''
+            array = data['capital']
+            for ar in array:
+                st = st + ', ' if st else ''
+                st += ar
+            params['capital'] = st
+        if 'timezones' in data:
+            st = ''
+            array = data['timezones']
+            for ar in array:
+                st = st + ', ' if st else ''
+                st += ar
+            params['timezones'] = st
+        if 'latlng' in data:
+            params['capital_lat'] = data['latlng'][0]
+            params['capital_lon'] = data['latlng'][1]
+        if 'region' in data:
+            region = data['region']
+            for unit in continents:
+                if 'code' in unit and unit['code'] == region:
+                    params['region'] = unit['id']
+                    break
+        # запомним массив кодов континентов
+        if 'continents' in data:
+            params['relation_continents'] = data['continents']
+        # запомним массив кодов языков
+        if 'languages' in data:
+            array = list()
+            for ar in data['languages'].keys():
+                array.append(ar)
+            params['relation_languages'] = array
+        # запомним массив кодов валют
+        if 'currencies' in data:
+            array = list()
+            for ar in data['currencies'].keys():
+                array.append(ar)
+            params['relation_currencies'] = array
+        # запомним массив суффиксов
+        if 'tld' in data:
+            params['relation_tld'] = data['tld']
+        # запомним массив границ
+        if 'borders' in data:
+            params['relation_borders'] = data['borders']
+        result.append(params)
+    return result
+
+
 class Countries(trafaret_thread.PatternThread):
 
     def __init__(self, source, code_function):
@@ -149,7 +232,7 @@ class Countries(trafaret_thread.PatternThread):
                 token_admin=self.token)
             return False
         ans = json.loads(ans)['values']
-        for data in answer:
+        for data in ans:
             for unit in list_countries:
                 if unit['code'] == data['code']:
                     unit['id'] = data['id']  # эта страна будет корректироваться (на всякий случай)
@@ -312,9 +395,103 @@ class Countries(trafaret_thread.PatternThread):
         else:
             return False
 
+    def read_entity(self, name_entity):
+        # прочитать заданную сущность (для определения ID)
+        url = 'v1/objects/{schema}/{name_entity}'.format(schema=config.SCHEMA, name_entity=name_entity)
+        t0 = time.time()
+        answer, is_ok, status_response = common.send_rest(url)
+        if not is_ok:
+            common.write_log_db(
+                'Error', self.source, 'Чтение сущности ' + name_entity + ': ' + str(answer), td=time.time() - t0,
+                file_name=common.get_computer_name() + '\n поток="' + self.code_parser + '"', token_admin=self.token)
+        answer = json.loads(answer)['values']
+        common.write_log_db(
+            'read_entity', self.source, 'Чтение сущности ' + name_entity, td=time.time() - t0, page=len(answer),
+            file_name=common.get_computer_name() + '\n поток="' + self.code_parser + '"', token_admin=self.token)
+        return answer
+
+    def define_id_countries(self, countries):
+        # определить id стран в словаре countries
+        url = 'v1/select/{schema}/nsi_countries'.format(schema=config.SCHEMA)
+        t0 = time.time()
+        answer, is_ok, status_response = common.send_rest(url, params={"columns": "official, id"})
+        if not is_ok:
+            common.write_log_db(
+                'Error', self.source, 'Чтение сущности countries' + str(answer), td=time.time() - t0,
+                file_name=common.get_computer_name() + '\n поток="' + self.code_parser + '"', token_admin=self.token)
+            return False
+        answer = json.loads(answer)
+        for data in answer:
+            for unit in countries:
+                if unit['official'] == data['official']:
+                    unit['id'] = data['id']  # эта страна будет корректироваться (на всякий случай)
+                    break
+        return True
+
+    def set_relation(self, code_rel, countries, relations, key, name_code='code'):
+        # теперь удалить все привязки к code_rel
+        t0 = time.time()
+        txt = 'v1/execute'
+        # script = "delete from {schema}.rel_countries_{code_rel}_{code_rel}; select 'ok';".format(
+        #     schema=config.SCHEMA, code_rel=code_rel)
+        script = "truncate table {schema}.rel_countries_{code_rel}_{code_rel}; select 'ok';".format(
+            schema=config.SCHEMA, code_rel=code_rel)
+        answer, is_ok, status_response = common.send_rest(txt, 'PUT', params=script, token_user=self.token)
+        td = time.time() - t0
+        if not is_ok:
+            common.write_log_db(
+                'Error', self.source, 'Удаление RELATION ' + code_rel + ': ' + str(answer), td=td,
+                file_name=common.get_computer_name() + '\n поток="' + self.code_parser + '"', token_admin=self.token)
+            return False
+        else:
+            common.write_log_db(
+                'Удаление RELATION', self.source, code_rel, td=time.time() - t0,
+                file_name=common.get_computer_name() + '\n поток="' + self.code_parser + '"',
+                token_admin=self.token)
+        # теперь надо записать RELATION
+        params = list()
+        st_sql = ''
+        for data in countries:
+            if key in data:
+                for unit in relations:
+                    param = dict()
+                    param['obj_id'] = unit['id']
+                    if name_code in unit:
+                        code = unit[name_code]
+                        if code in data[key]:
+                            param['value'] = 1
+                            if 'id' in data:
+                                param['id'] = data['id']
+                                params.append(param)
+                                st_sql = st_sql + "insert into {schema}.rel_countries_{code_rel}_{code_rel} " \
+                                                  "(countries_id, {code_rel}_id) values " \
+                                                  "({country_id}, {rel_id}); select 1;\n".\
+                                    format(
+                                        schema=config.SCHEMA, code_rel=code_rel, country_id=param['id'],
+                                        rel_id=param['obj_id']
+                                )
+        if len(params) > 0:
+            # txt = 'v1/relations/{schema}/countries/{code_rel}'.format(
+            #     schema=config.SCHEMA, code_rel=code_rel)
+            t1 = time.time()
+            # answer, is_ok, status_response = common.send_rest(txt, 'PUT', params=params, token_user=self.token)
+            answer, is_ok, status_response = common.send_rest('v1/execute', 'PUT', st_sql, token_user=self.token)
+            if not is_ok:
+                common.write_log_db(
+                    'Error', self.source, 'Запись RELATION ' + code_rel + ': ' + str(answer), td=time.time() - t1,
+                    file_name=common.get_computer_name() + '\n поток="' + self.code_parser + '"', page=len(params),
+                    token_admin=self.token)
+                return False
+            else:
+                common.write_log_db(
+                    'Запись RELATION', self.source, code_rel, td=time.time() - t0, page=len(params),
+                    file_name=common.get_computer_name() + '\n поток="' + self.code_parser + '"',
+                    token_admin=self.token)
+        return True
+
     def work(self):
         super(Countries, self).work()
-        countries = c_countries.load_countries(token=self.token)
+        countries = common.load_countries(token=self.token)
         if countries is None:
             print('Нет стран')
             return False
@@ -323,6 +500,7 @@ class Countries(trafaret_thread.PatternThread):
         answer = self.import_json()
         if answer is None:
             return False
+        # result = True
         result = self.load_tld(answer)
         if result:
             result = self.load_languages(answer)
@@ -330,6 +508,70 @@ class Countries(trafaret_thread.PatternThread):
             result = self.load_currencies(answer)
         if result:
             result = self.load_list_countries(answer)
+
+        continents = None
+        list_countries = None
+        languages = None
+        currencies = None
+        tld = None
+        countries = None
+
+        # прочитать существующие континенты (для определения ID) Relation
+        if result:
+            continents = self.read_entity('continent')
+            result = continents is not None
+
+        # прочитать существующий список стран (для определения ID) Relation
+        if result:
+            list_countries = self.read_entity('list_countries')
+            result = list_countries is not None
+
+        # прочитать существующие языки (для определения ID) Relation
+        if result:
+            languages = self.read_entity('languages')
+            result = languages is not None
+
+        # прочитать существующие валюты (для определения ID) Relation
+        if result:
+            currencies = self.read_entity('currencies')
+            result = currencies is not None
+
+        # прочитать существующие суффиксы (для определения ID) Relation
+        if result:
+            tld =self.read_entity('tld')
+            result = tld is not None
+
+        if result:
+            countries = prepare_countries(answer, continents)
+
+        if result:  # поместить ID в уже существующие страны
+            self.define_id_countries(countries)
+            # записать информацию по странам
+            t1 = time.time()
+            result = common.write_objects_db('countries', countries, token=self.token) is None
+            common.write_log_db(
+                'import', self.source, 'Запись стран', td=time.time() - t1, page=len(countries), token_admin=self.token,
+                file_name=common.get_computer_name() + '\n поток="' + self.code_parser + '; nsi_countries;"')
+
+        # теперь надо записать континенты
+        if result:
+            result = self.set_relation('continent', countries, continents, 'relation_continents')
+
+        # теперь записать привязки к языкам
+        if result:
+            result = self.set_relation('languages', countries, languages, 'relation_languages')
+
+        # теперь записать привязки к валютам
+        if result:
+            result = self.set_relation('currencies', countries, currencies, 'relation_currencies')
+
+        # теперь записать привязки к суффиксам
+        if result:
+            result = self.set_relation('tld', countries, tld, 'relation_tld', name_code='sh_name')
+
+        # теперь записать привязки к границам
+        if result:
+            result = self.set_relation('list_countries', countries, list_countries, 'relation_borders')
 
         if result:
             t1 = time.time()
@@ -350,7 +592,5 @@ class Countries(trafaret_thread.PatternThread):
                 'https://merkator.org.ua/ru/spravochnik/formy-gosudarstvennogo-ustroystva-stran-mira/')
             if lws:
                 result = self.make_merkator(lws, countries, 'type_government', t1, 'Тип государственного устройства')
-        if result:
-            t1 = time.time()
 
         return result

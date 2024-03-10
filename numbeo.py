@@ -1,8 +1,6 @@
 import time
 import common
 import config
-import cities as c_cities
-import countries as c_countries
 from bs4 import BeautifulSoup
 import requests
 from requests.adapters import HTTPAdapter
@@ -25,7 +23,7 @@ def make_numbeo_crime(lws, year, param_name, count, i_name, i_value):
     :param i_value:  - индекс колонки со значением в строке таблицы
     :return:
     """
-    countries = c_countries.load_countries()
+    countries = common.load_countries()
     if countries is None:
         return
     token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
@@ -67,10 +65,10 @@ def make_numbeo_table(lws, year, param_name, count, i_name, i_value):
     if not is_ok:
         print('Error login')
         return
-    countries = c_countries.load_countries()
+    countries = common.load_countries()
     if countries is None:
         return
-    cities = c_cities.load_cities()
+    cities = common.load_cities()
     if cities is None:
         return
     date = '{year}-01-01'.format(year=year)
@@ -101,7 +99,7 @@ def make_numbeo_table(lws, year, param_name, count, i_name, i_value):
                 else:
                     need_reload = True
     if need_reload:
-        cities = c_cities.load_cities()  # прочитать новый список
+        cities = common.load_cities()  # прочитать новый список
     for i in range(0, len(lws), count):
         name = lws[i + i_name].split(',')
         name_city = name[0].strip()
@@ -227,7 +225,7 @@ def get_his_numbeo(filename):
 
 
 def make_history_numbeo(filename, param_name):
-    countries = c_countries.load_countries()
+    countries = common.load_countries()
     token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
     if not is_ok:
         return

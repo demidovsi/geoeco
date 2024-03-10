@@ -90,7 +90,7 @@ class TradingEconomics(trafaret_thread.PatternThread):
 
     def load_list_indicators(self):
         t0 = time.time()
-        countries = c_countries.load_countries(token=self.token)
+        countries = common.load_countries(token=self.token)
         common.write_log_db(
             'import', self.source, 'Чтение списка стран', td=time.time() - t0, law_id=str(len(countries)),
             file_name=common.get_computer_name() + '\n поток="' + self.code_parser, token_admin=self.token)

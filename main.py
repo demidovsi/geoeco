@@ -19,7 +19,6 @@ import bigmac
 import time
 import config
 import tables_csv
-import provinces
 import turkey
 import russia
 import wikipedia
@@ -90,23 +89,23 @@ if __name__ == '__main__':
         file_name=common.get_computer_name()
     )
 
-    # t_statdata.obj = t_statdata.StatData('Крупные города', 'statdata')
-    # t_statdata.obj.start()
+    t_statdata.obj = t_statdata.StatData('Крупные города', 'statdata')
+    t_statdata.obj.start()
 
     t_countries.obj = t_countries.Countries('Описание стран', 'countries')
     t_countries.obj.start()
 
-    # t_worldbank.obj = t_worldbank.Wb('Всемирный банк', 'wb')
-    # t_worldbank.obj.start()
+    t_worldbank.obj = t_worldbank.Wb('Всемирный банк', 'wb')
+    t_worldbank.obj.start()
 
-    # t_numbeo.obj = t_numbeo.Numbeo('Numbeo', 'numbeo')
-    # t_numbeo.obj.start()
+    t_numbeo.obj = t_numbeo.Numbeo('Numbeo', 'numbeo')
+    t_numbeo.obj.start()
 
-    # t_tradingeconomics.obj = t_tradingeconomics.TradingEconomics('Tradingeconomics', 'trading')
-    # t_tradingeconomics.obj.start()
+    t_tradingeconomics.obj = t_tradingeconomics.TradingEconomics('Tradingeconomics', 'trading')
+    t_tradingeconomics.obj.start()
 
-    # t_clear_logs.obj = t_clear_logs.ClearLogs('Чистка лога', 'clear_logs')
-    # t_clear_logs.obj.start()
+    t_clear_logs.obj = t_clear_logs.ClearLogs('Чистка лога', 'clear_logs')
+    t_clear_logs.obj.start()
 
     while True:
         time.sleep(5)

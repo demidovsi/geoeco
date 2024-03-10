@@ -26,7 +26,7 @@ def load_data(indicator, param_name, clear_table=False):
             url_wordbank=config.url_wordbank, indicator=indicator, page=1, total=total)
         answer, is_ok, status = common.send_rest_url(url)  # прочитать все
         if is_ok:
-            countries = c_countries.load_countries()
+            countries = common.load_countries()
             answer = json.loads(answer)
             token, is_ok = common.login_superadmin()
             if clear_table:

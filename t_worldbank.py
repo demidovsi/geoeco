@@ -27,7 +27,7 @@ class Wb(trafaret_thread.PatternThread):
         index = 0
         if is_ok:
             answer = json.loads(answer)
-            countries = c_countries.load_countries(self.token)
+            countries = common.load_countries(self.token)
             if countries is None:
                 print('Отсутствуют страны')
                 return False
@@ -65,7 +65,7 @@ class Wb(trafaret_thread.PatternThread):
             print('Не удалось определить имя параметра для', indicator)
             return None, ''
         if countries is None:
-            countries = c_countries.load_countries(self.token)
+            countries = common.load_countries(self.token)
         if countries is None:
             print('Отсутствуют страны')
             return None, ''

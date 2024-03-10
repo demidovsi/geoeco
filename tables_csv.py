@@ -22,7 +22,7 @@ def load_inform(filename, param_name, index_value, symbol=',', index_name=0, ind
     rows = get_file(filename)
     if rows is None:
         return
-    countries = c_countries.load_countries()
+    countries = common.load_countries()
     if countries is None:
         return
     token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))

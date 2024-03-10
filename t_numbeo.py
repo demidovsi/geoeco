@@ -1,8 +1,6 @@
 import trafaret_thread
 import common
 import config
-import countries as c_countries
-import cities as c_cities
 import json
 import time
 import requests
@@ -40,7 +38,7 @@ class Numbeo(trafaret_thread.PatternThread):
         index = 0
         if is_ok:
             answer = json.loads(answer)
-            countries = c_countries.load_countries()
+            countries = common.load_countries()
             if countries is None:
                 print('Отсутствуют страны')
                 return False
@@ -169,7 +167,7 @@ class Numbeo(trafaret_thread.PatternThread):
 
     def make_years_cities(self, data, countries):
         # годовая информация по странам для одного параметра (за интервал годов с 2012-го)
-        cities = c_cities.load_cities(self.token)
+        cities = common.load_cities(self.token)
         if cities is None:
             return None, ''
         count_row = 0
@@ -205,7 +203,7 @@ class Numbeo(trafaret_thread.PatternThread):
                             else:
                                 need_reload = True
                 if need_reload:
-                    cities = c_cities.load_cities(self.token)  # прочитать новый список
+                    cities = common.load_cities(self.token)  # прочитать новый список
                 for i in range(0, len(lws), data['column_count']):
                     name = lws[i + data['ind_name']].split(',')
                     name_city = name[0].strip()

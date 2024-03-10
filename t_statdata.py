@@ -1,7 +1,5 @@
 import trafaret_thread
 import common
-import countries as c_countries
-import cities as c_cities
 import time
 import requests
 from bs4 import BeautifulSoup
@@ -45,11 +43,11 @@ class StatData(trafaret_thread.PatternThread):
         lws = self.load_html("https://www.statdata.ru/largestcities_world")
         if lws is None:
             return False
-        countries = c_countries.load_countries(self.token)
+        countries = common.load_countries(self.token)
         if countries is None:
             print('Отсутствуют страны')
             return False
-        cities = c_cities.load_cities(self.token)
+        cities = common.load_cities(self.token)
         values = list()
         # сформируем или скорректируем список крупнейших городов мира
         st_absent = ''
@@ -89,7 +87,7 @@ class StatData(trafaret_thread.PatternThread):
 
         common.write_objects_db('cities', values, self.token)
         # прочитать новый список городов
-        cities = c_cities.load_cities(self.token)
+        cities = common.load_cities(self.token)
         st_sql = ''
         date = str(time.gmtime().tm_year) + '-' + str(time.gmtime().tm_mon).rjust(2, '0') + '-01'
 

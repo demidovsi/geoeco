@@ -25,7 +25,7 @@ def load_bm():
     st_local_price = ''
     st_dollar_price = ''
     st_index_dollar = ''
-    countries = c_countries.load_countries()
+    countries = common.load_countries()
     token, is_ok = common.login('superadmin', common.decode('abcd', config.kirill))
     # составим список стран еврозоны
     list_code_euz = []

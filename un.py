@@ -19,7 +19,7 @@ def get_his_population(filename):
 
 
 def make_history(filename, param_name):
-    countries = c_countries.load_countries()
+    countries = common.load_countries()
     if countries is None:
         return
     answer = get_his_population(filename)  # прочитать файл с информацией (https://w3.unece.org/PXWeb/ru/Table?IndicatorCode=25)

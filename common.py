@@ -131,6 +131,23 @@ def st_now():
            str(time.gmtime().tm_hour).rjust(2, '0') + ':' + str(time.gmtime().tm_min).rjust(2, '0') + ':00'
 
 
+def load_countries(token=None):
+    """
+    Загрузка списка стран (для определения ID по имени).
+    :param token: - токен для RestAPI (для операции PUT) - опционально
+    :return: массив стран или None при ошибке чтения
+    """
+    url = 'v1/select/{schema}/nsi_countries'.format(schema=config.SCHEMA)
+    countries, is_ok, status_response = send_rest(
+        url, params={"columns": "id, code, name_rus, official_rus, sh_name, official, es_member"})
+    if not is_ok:
+        # print(str(countries))
+        write_log_db('ERROR', 'load_countries', str(countries) + '; ' + url, token_admin=token)
+        return
+    countries = json.loads(countries)
+    return countries
+
+
 def get_country_id(name, countries, code=None, pr=True):
     try:
         name = name.split('[')[0]
@@ -219,6 +236,18 @@ def get_city_id(name_city, cities):
         if name_city.upper() in [city['sh_name'].upper(), city['name_rus'].upper()]:
             return city['id']
     print('Absent city', name_city)
+
+
+def load_cities(token=None):
+    url = 'v1/select/{schema}/nsi_cities'.format(schema=config.SCHEMA)
+    cities, is_ok, status_response = send_rest(
+        url, params={"columns": "id, name_rus, sh_name, population, square, country"})
+    if not is_ok:
+        # print(str(cities))
+        write_log_db('ERROR', 'load_cities', str(cities) + '; ' + url, token_admin=token)
+        return
+    cities = json.loads(cities)
+    return cities
 
 
 def write_script_db(st_query, token=None):
@@ -414,3 +443,15 @@ def get_st_sql(st_sql, name_function, date, id, value, param_name):
     st_sql += "select {schema}.{name_function}('{param_name}', '{date}', {id}, {value});\n". \
         format(param_name=param_name, date=date, id=id, value=value, schema=config.SCHEMA, name_function=name_function)
     return st_sql
+
+
+def load_provinces_db(country_id):
+    url = 'v1/select/{schema}/nsi_provinces?where=country={country_id}'.format(
+        schema=config.SCHEMA, country_id=country_id)
+    provinces, is_ok, status_response = send_rest(
+        url, params={"columns": "id, name_own"})
+    if not is_ok:
+        print(str(provinces))
+        return
+    cities = json.loads(provinces)
+    return cities
