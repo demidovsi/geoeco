@@ -121,24 +121,51 @@ def st_today():
            str(time.gmtime().tm_mday).rjust(2, '0')
 
 
+def st_month():
+    return str(time.gmtime().tm_year) + '-' + str(time.gmtime().tm_mon).rjust(2, '0') + '-01'
+
+
 def st_now():
     return str(time.gmtime().tm_year) + '-' + str(time.gmtime().tm_mon).rjust(2, '0') + '-' + \
            str(time.gmtime().tm_mday).rjust(2, '0') + ' ' +\
            str(time.gmtime().tm_hour).rjust(2, '0') + ':' + str(time.gmtime().tm_min).rjust(2, '0') + ':00'
 
 
+def load_countries(token=None):
+    """
+    Загрузка списка стран (для определения ID по имени).
+    :param token: - токен для RestAPI (для операции PUT) - опционально
+    :return: массив стран или None при ошибке чтения
+    """
+    url = 'v1/select/{schema}/nsi_countries'.format(schema=config.SCHEMA)
+    countries, is_ok, status_response = send_rest(
+        url, params={"columns": "id, code, name_rus, official_rus, sh_name, official, es_member"})
+    if not is_ok:
+        # print(str(countries))
+        write_log_db('ERROR', 'load_countries', str(countries) + '; ' + url, token_admin=token)
+        return
+    countries = json.loads(countries)
+    return countries
+
+
 def get_country_id(name, countries, code=None, pr=True):
     try:
+        name = name.split('[')[0]
+        name = name.replace('<strong>', '').replace('</strong>', '').strip()
         if code is None:
             name = name.strip().replace(' (China)', '').replace('Us', 'United States').replace('US', 'United States'). \
                 replace('Macao', 'Macau').replace('Lebenon', 'Lebanon').replace('США', 'United States'). \
-                replace('Соединенные Штаты', 'United States').\
+                replace('Соединенные Штаты', 'United States').replace('United States Америки', 'United States').\
                 replace('Сербии', 'Сербия').replace('Шри Ланка', 'Шри-Ланка').\
                 replace('Папуа-Новая Гвинея', 'Папуа — Новая Гвинея').replace('ЮАР', 'Южная Африка').\
-                replace('Республике Конго', 'Республика Конго')
+                replace('Республике Конго', 'Республика Конго').replace('Папуа - Новая Гвинея', 'Папуа — Новая Гвинея')
+            if name in ['Саудов. Аравия']:
+                name = 'Саудовская Аравия'
+            if name in ['Kosovo (Disputed Territory)', 'Косово']:
+                name = 'Республика Косово'
             if name in ['Конго', 'Congo', 'Democratic Republic of Congo', 'ДР Конго']:
-                name = 'Республика Конго'
-            if name == "Cote d'Ivoire":
+                name = 'Демократическая Республика Конго'
+            if name in ["Cote d'Ivoire", "Кот-д\'Ивуар", "Берег Слоновой Кости"]:
                 name = 'Ivory Coast'
             if name == "Curacao":
                 name = 'Curaçao'
@@ -172,6 +199,12 @@ def get_country_id(name, countries, code=None, pr=True):
                 name = 'Свазиленд'
             if name == "Македония":
                 name = 'Северная Македония'
+            if name in ["Коморские Острова", "Коморские острова"]:
+                name = 'Коморы'
+            if name in ["Эритрее"]:
+                name = 'Эритрея'
+            if name in ["Микронезия"]:
+                name = 'Федеративные Штаты Микронезии'
             for country in countries:
                 if name.upper() in [country['sh_name'].upper(), country['official'].upper(), country['name_rus'].upper(),
                                     country['official_rus'].upper()]:
@@ -189,6 +222,8 @@ def get_country_id(name, countries, code=None, pr=True):
 
 
 def get_city_id(name_city, cities):
+    name_city = name_city.split('[')[0]
+    name_city = name_city.replace('<strong>', '').replace('</strong>', '').strip()
     name_city = name_city.replace('NY', 'New York')
     name_city = name_city.split('<strong>')
     if len(name_city) != 1:
@@ -203,6 +238,18 @@ def get_city_id(name_city, cities):
     print('Absent city', name_city)
 
 
+def load_cities(token=None):
+    url = 'v1/select/{schema}/nsi_cities'.format(schema=config.SCHEMA)
+    cities, is_ok, status_response = send_rest(
+        url, params={"columns": "id, name_rus, sh_name, population, square, country"})
+    if not is_ok:
+        # print(str(cities))
+        write_log_db('ERROR', 'load_cities', str(cities) + '; ' + url, token_admin=token)
+        return
+    cities = json.loads(cities)
+    return cities
+
+
 def write_script_db(st_query, token=None):
     if st_query:
         if token is None:
@@ -210,23 +257,31 @@ def write_script_db(st_query, token=None):
             if not is_ok:
                 write_log_db('ERROR', 'login', str(token))
                 print('Error login')
-                return
+                return False
         answer, ok, status = send_rest(
             'v1/execute', 'PUT', st_query, lang='en', token_user=token)
         if not ok:
-            write_log_db('ERROR', 'v1/execute', str(answer))
+            write_log_db('ERROR', 'v1/execute', str(answer).split(';')[0] + ' ...')
             print(answer)
+            return False
+        else:
+            return True
 
 
-def write_objects_db(object_code, values):
-    token, is_ok = login('superadmin', decode('abcd', config.kirill))
-    if not is_ok:
-        print('Error login')
-        return
+def write_objects_db(object_code, values, token=None):
+    # возвращается None если все хорошо, иначе текст ошибки
+    if token is None:
+        ans, is_ok, token, lang = login_superadmin()
+        if not is_ok:
+            print('Error login')
+            return str(ans)
     params = {"schema_name": config.SCHEMA, "object_code": object_code, "values": values}
     ans, ok, status_result = send_rest('v1/objects', 'PUT', params=params, token_user=token)
     if not ok:
         print(ans)
+        write_log_db('Error', 'write_objects_db', status_result + ': ' + str(ans), file_name=get_computer_name(),
+                     token_admin=token)
+        return str(ans)
 
 
 def check_country_name(name_country):
@@ -289,7 +344,7 @@ def login_superadmin():
                     lang_admin = js['lang']
             else:
                 token = None
-                return txt, result, token
+                return txt, result, token, ''
         except Exception as err:
             txt = f'Error occurred: : {err}'
     return txt, result, token_admin, lang_admin
@@ -309,8 +364,8 @@ def write_log_db(level, src, msg, page=None, file_name='', law_id='', td=None, w
     st_law_id = '' if law_id is None or law_id == '' else 'law_id=' + law_id + ';'
     st_page = '' if page is None or page == '' else 'page=' + str(page) + ';'
     if write_to_consol:
-        print(time.ctime() + ':', level + ';', src + ';', st_td, st_page, st_law_id, st_file_name.replace('\n', ' '),
-              msg.replace('\n', ' '), flush=True)
+        print( time.asctime(time.gmtime()) + ':', level + ';', src + ';', st_td, st_page, st_law_id,
+               st_file_name.replace('\n', ' '), msg.replace('\n', ' '), flush=True)
     if not write_to_db:
         return
     if token_admin is None:
@@ -383,3 +438,20 @@ def define_guest(ip_text, check_simple=True):
     except Exception as err:
         return f"{err}", '', False
 
+
+def get_st_sql(st_sql, name_function, date, id, value, param_name):
+    st_sql += "select {schema}.{name_function}('{param_name}', '{date}', {id}, {value});\n". \
+        format(param_name=param_name, date=date, id=id, value=value, schema=config.SCHEMA, name_function=name_function)
+    return st_sql
+
+
+def load_provinces_db(country_id):
+    url = 'v1/select/{schema}/nsi_provinces?where=country={country_id}'.format(
+        schema=config.SCHEMA, country_id=country_id)
+    provinces, is_ok, status_response = send_rest(
+        url, params={"columns": "id, name_own"})
+    if not is_ok:
+        print(str(provinces))
+        return
+    cities = json.loads(provinces)
+    return cities

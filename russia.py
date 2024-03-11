@@ -3,7 +3,6 @@ import requests
 from requests.adapters import HTTPAdapter
 from deep_translator import GoogleTranslator
 import common
-import provinces
 
 http_adapter = HTTPAdapter(max_retries=10)
 
@@ -24,7 +23,7 @@ def load_inform():
     values = list()
     lws = load_html("https://www.statdata.ru/spisok-regionov-rossii-s-kodamy")
     if len(lws) > 0:
-        list_provinces = provinces.load_provinces_db(country_id)
+        list_provinces = common.load_provinces_db(country_id)
         for unit in lws:
             tr = unit.find_all('td')
             data = dict()

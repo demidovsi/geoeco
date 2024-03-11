@@ -33,7 +33,7 @@ def get_corruption_index():
     lws = load_html(url)
     if lws is None:
         return
-    countries = c_countries.load_countries()
+    countries = common.load_countries()
     if countries is None:
         print('Отсутствуют страны')
         return

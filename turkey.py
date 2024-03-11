@@ -11,8 +11,6 @@ import os
 import inform
 import common
 import config
-import provinces
-import countries as c_countries
 
 http_adapter = HTTPAdapter(max_retries=10)
 headers = {
@@ -73,7 +71,7 @@ def make_provinces_turkish(country_id):
     with f:
         answer = f.read()
     answer = json.loads(answer)
-    list_provinces = provinces.load_provinces_db(country_id)
+    list_provinces = common.load_provinces_db(country_id)
     values = list()
     for data in answer:
         for unit in list_provinces:
@@ -85,7 +83,7 @@ def make_provinces_turkish(country_id):
 
 
 def sale_foreign(country_id):
-    countries = c_countries.load_countries()
+    countries = common.load_countries()
     if countries is None:
         return
     filename = "source/Турция/ulke uyruklarina gore yabancilara yapilan konut satis sayilari.xls"
@@ -132,7 +130,7 @@ def sale_foreign(country_id):
 
 
 def sale_total(country_id):
-    countries = c_countries.load_countries()
+    countries = common.load_countries()
     if countries is None:
         return
     filename = "source/Турция/satis sekline ve satis durumuna gore konut satis sayilari.xls"
@@ -195,7 +193,7 @@ def make_districts_turkish(country_id):
     filename = "source/Турция/ilcelere gore konut satis sayilari.xls"
     if not os.path.exists(filename):
         return
-    list_provinces = provinces.load_provinces_db(country_id)  # провинции из БД
+    list_provinces = common.load_provinces_db(country_id)  # провинции из БД
     if list_provinces is None:
         return
     df = xlrd.open_workbook_xls(filename)
@@ -222,11 +220,10 @@ def make_districts_turkish(country_id):
                         break
                 if not exist:
                     data['districts'].append({'name_own': name_dis})
-    print(provinces)
 
 
 def sale_foreign_tourists(country_id):
-    countries = c_countries.load_countries()
+    countries = common.load_countries()
     if countries is None:
         return
     filename = "source/Турция/Кол-во туристов по странам.xls"

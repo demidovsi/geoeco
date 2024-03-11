@@ -1,5 +1,6 @@
 import threading
 import time
+import datetime
 import json
 import common
 import common as cd
@@ -16,7 +17,8 @@ def get_value_config_param(key, par, default=1):
 def load_config_params(name_function):
     url = "v1/view/{schema}/v_nsi_parser_functions?where=sh_name='{name_function}'".format(
         schema=config.SCHEMA, name_function=name_function)
-    params = {"0": "id", "1": "sh_name", "2": "description", "3": "active", "4": "period", "5": "compliment"}
+    params = {"0": "id", "1": "sh_name", "2": "description", "3": "active", "4": "period", "5": "compliment",
+              "6": "at_date_time"}
     answer, is_ok, status_code = common.send_rest(url, params=params)
     if is_ok:
         answer = json.loads(answer)[0]
@@ -44,6 +46,8 @@ def get_difference_config_params(par, list_parameters):
     st_param_work = ''
     st_param_work += get_param_work('active', list_parameters['active'])
     st_param_work += get_param_work('period', list_parameters['period'], ' days')
+    if list_parameters['at_date_time']:
+        st_param_work += get_param_work('at_date_time', list_parameters['at_date_time'].replace('T', ' '))
     return st_difference, st_param_work
 
 
@@ -66,23 +70,22 @@ def set_value_config_param(key, par, value, token=None):
 
 
 class PatternThread(threading.Thread):
-    sleep_from_now = False
     period_default = 1
     source = ''
     code_period = ''
     code_parser = ''
     description = ''
-    token = ''
+    token = None
     lang = 'ru'
     time_begin = None  # время старта потока
     from_time = None
     next_time = 0
+    time_start = None  # время начала такта работы
     par = dict()
     first_cycle = True
     finish_text = ''
     st_filename = ''
     st_law_id = ''
-    t0 = None  # время начала такта работы
 
     def __init__(self, source, code_parser):
         threading.Thread.__init__(self)
@@ -91,9 +94,9 @@ class PatternThread(threading.Thread):
         self.code_parser = code_parser
         self.initiation_parameters()
 
-    def make_next_time(self, value_minute, from_time):
+    def make_next_time(self, value_day, from_time):
         self.from_time = from_time
-        self.next_time = from_time + value_minute * 86400
+        self.next_time = from_time + value_day * 86400
 
     def define_next_time(self):
         if self.next_time is None or self.next_time == 0:
@@ -122,16 +125,22 @@ class PatternThread(threading.Thread):
                     'Новая планируемая активность в ' + time.asctime(time.gmtime(self.next_time)),
                     file_name=get_computer_name() + '\n поток="' + self.code_parser + '"',
                     token_admin=self.token)
+        if list_parameters['at_date_time'] and self.first_cycle:
+            dt = datetime.datetime.strptime(list_parameters['at_date_time'], "%Y-%m-%dT%H:%M:%S")
+            self.make_next_time(get_value_config_param('period', self.par, self.period_default), dt.timestamp())
+            # cd.write_log_db(
+            #     'Коррекция активности', self.source,
+            #     'Старая планируемая активность в ' + time.ctime(self.from_time) + '\n' +
+            #     'Новая планируемая активность в ' + time.ctime(self.next_time),
+            #     file_name=get_computer_name() + '\n поток="' + self.code_parser + '"',
+            #     token_admin=self.token)
         self.first_cycle = False
 
     def initiation_parameters(self):
         self.par = load_config_params(self.code_parser)
 
     def work(self):
-        if get_value_config_param('active', self.par) != 1:
-            cd.write_log_db('SLEEP', self.source, 'Поток не АКТИВЕН (active)', file_name=get_computer_name(),
-                            token_admin=self.token)
-            return True
+        pass
 
     def get_duration(self):
         return common.get_duration(time.time() - self.time_begin)
@@ -152,45 +161,48 @@ class PatternThread(threading.Thread):
         return ''
 
     def run(self):
-        cd.write_log_db('LOAD', self.source, self.get_description(),
+        cd.write_log_db('RUN', self.source, self.get_description(),
                         file_name=get_computer_name() + '\n поток="' + self.code_parser + '"',
                         token_admin=self.token)
         self.from_time = time.time()
         self.time_begin = time.time()
         self.next_time = time.time()
         while True:
-            self.t0 = time.time()
+            self.time_start = time.time()
             self.finish_text = ''
             list_parameters = load_config_params(self.code_parser)  # словарь считанных параметров для сервиса
             try:
                 if list_parameters is not None:
-                    # анализ изменения параметров и реакция на это
+                    if self.par['active'] != list_parameters['active'] and list_parameters['active'] == 0:
+                        self.first_cycle = True
                     self.analysis_changing_parameters(list_parameters)
+                    # анализ изменения параметров и реакция на это
                 if time.time() >= self.next_time:  # подошло время работать
                     last_time = self.next_time
-                    if not self.work():
+                    sleep = get_value_config_param('active', self.par) != 1
+                    if sleep:
+                        common.write_log_db('SLEEP', self.source, 'Поток не АКТИВЕН (active)',
+                                            file_name=get_computer_name(), token_admin=self.token)
+                    else:
+                        sleep = not self.make_login()  # нет логина - ждать
+                    if sleep or not self.work():
                         self.next_time = last_time
                     else:
-                        if self.sleep_from_now:
-                            self.make_next_time(get_value_config_param('period', self.par), time.time())
-                        else:
-                            self.make_next_time(get_value_config_param('period', self.par), self.next_time)
-                        while self.next_time < time.time():
-                            self.from_time = self.next_time
-                            self.define_next_time()
-                        st = 'Тайм-аут'+cd.get_duration(get_value_config_param(
+                        self.from_time = self.time_start
+                        self.next_time = self.time_start + get_value_config_param('period', self.par) * 86400
+                        st = 'Тайм-аут ' + cd.get_duration(get_value_config_param(
                             'period', self.par) * 86400) + ' до ' + time.asctime(time.gmtime(self.next_time))
                         cd.write_log_db('Finish', self.source, st + '.\n' + self.finish_text,
-                                        td=time.time() - self.t0,
+                                        td=time.time() - self.time_start,
                                         file_name=get_computer_name() + '\n поток="' + self.code_parser + '"',
                                         token_admin=self.token)
                         set_value_config_param('at_date_time', self.par, common.st_now(), token=self.token)
             except Exception as err:
                 cd.write_log_db('Exception', self.source, f"{err} сервер=" + get_computer_name(),
-                                td=time.time() - self.t0,
+                                td=time.time() - self.time_start,
                                 file_name=self.st_filename + '\n поток="' + self.code_parser + '"',
                                 law_id=self.st_law_id, token_admin=self.token)
-            time_out = 60 - (time.time() - self.t0)
+            time_out = 60 - (time.time() - self.time_start)
             if time_out <= 0:
                 time_out = 60
             time.sleep(time_out)

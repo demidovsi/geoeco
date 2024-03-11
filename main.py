@@ -7,30 +7,22 @@
 # https://ru.tradingeconomics.com/country-list/personal-income-tax-rate
 import socket
 import common
+import t_countries
+import t_worldbank
+import t_numbeo
+import t_clear_logs
+import t_statdata
+import t_tradingeconomics
 import countries
-import numbeo
 import un
-import wordbank
-import cities
-import government
 import bigmac
-import json
 import time
 import config
-import tables_html
 import tables_csv
-import provinces
 import turkey
 import russia
-import tradingeconomic
-import requests
-import os
-from requests.utils import DEFAULT_CA_BUNDLE_PATH
-import wbgapi as wb
-import pandas as pd
 import wikipedia
-import trafaret_thread
-import clear_logs
+from requests.utils import DEFAULT_CA_BUNDLE_PATH
 
 version = '1.0.1 2024-03-02'
 
@@ -42,7 +34,6 @@ if __name__ == '__main__':
     # requests.adapters.DEFAULT_CA_BUNDLE_PATH = os.path.abspath("cacert.pem")
     # print(os.environ["REQUESTS_CA_BUNDLE"])
 
-
     # filename = 'source/UN/gdp_import1.json'
     # f = open(filename, 'r')
     # with f:
@@ -53,12 +44,6 @@ if __name__ == '__main__':
     #     f.write(json.dumps(answer, indent=4, ensure_ascii=False, sort_keys=True))
 
     # ------------------ не задокументировано
-    # ????? government.load_form_government_html(
-    #     'https://merkator.org.ua/ru/spravochnik/formy-pravleniya-stran-mira', 'government')
-
-    # cities.make_form_government('source/Формы правления государств.txt')  # формы государства
-    # cities.make_type_government('source/Формы государственного устройства.txt')  # типы государства
-
     # bigmac.load_bm()  # !!! отдельная песня сделанная Кириллом через эксель и экспорт в свою базу
 
     # countries.load_courses('2024-02-10')  # загрузка курсов валюты стран за указанные сутки
@@ -81,16 +66,10 @@ if __name__ == '__main__':
     # ?????tables_html.load_trading('https://api.tradingeconomics.com/country/russia')
 
     # countries.receive_inform()  # взять информацию из API и записать в файл result.json
-    # countries.load_tld()  # суффиксы доменов
-    # countries.load_languages()  # языки мира
-    # countries.load_currencies() # валюты мира
     # countries.load_list_countries()  # загрузить страны для границ
     # countries.make_countries()  # прочитать не историческую информацию по странам
     # countries.load_courses(common.st_today())  # загрузить курсы валют на текущий день
     # un.load_inform()
-    # wordbank.load_inform()
-    # numbeo.load_inform_countries()
-    # numbeo.load_inform_cities()
     # turkey.make_inform()  # отдельная обработка Турции
 
     # russia.load_inform()
@@ -99,17 +78,8 @@ if __name__ == '__main__':
     #     print(row)
     # for row in wb.data.DataFrame(['VC.IHR.PSRC.P5'], time=range(2000, 2024)):  # all years
     #     print(row)
-    # wordbank.load_data('FR.INR.DPST', 'deposit_rate')
-    # wordbank.import_indicators()
-    # wordbank.import_data('FR.INR.LEND')
-    # wordbank.load_data('EP.PMP.SGAS.CD', 'gasoline_price')
-    # 'NY.GNP.PCAP.PP.CD' = gnp_person
-    # tradingeconomic.load_data_html('social-security-rate-for-employees')
     # turkey.sale_foreign_tourists(25)
     # wikipedia.get_corruption_index()
-    # tradingeconomic.load_data_html('home-ownership-rate')
-
-    # country, city, is_ok = common.define_guest(socket.gethostbyname(socket.gethostname()), False)
 
     common.write_log_db(
         'START', 'WebParser', 'Старт сервиса подкачки статистической информации \n' +
@@ -119,11 +89,23 @@ if __name__ == '__main__':
         file_name=common.get_computer_name()
     )
 
-    wordbank.obj = wordbank.Wb('Всемирный банк', 'wb')
-    wordbank.obj.start()
+    t_statdata.obj = t_statdata.StatData('Крупные города', 'statdata')
+    t_statdata.obj.start()
 
-    clear_logs.obj = clear_logs.ClearLogs('Чистка лога', 'clear_logs')
-    clear_logs.obj.start()
+    t_countries.obj = t_countries.Countries('Описание стран', 'countries')
+    t_countries.obj.start()
+
+    t_worldbank.obj = t_worldbank.Wb('Всемирный банк', 'wb')
+    t_worldbank.obj.start()
+
+    t_numbeo.obj = t_numbeo.Numbeo('Numbeo', 'numbeo')
+    t_numbeo.obj.start()
+
+    t_tradingeconomics.obj = t_tradingeconomics.TradingEconomics('Tradingeconomics', 'trading')
+    t_tradingeconomics.obj.start()
+
+    t_clear_logs.obj = t_clear_logs.ClearLogs('Чистка лога', 'clear_logs')
+    t_clear_logs.obj.start()
 
     while True:
         time.sleep(5)
