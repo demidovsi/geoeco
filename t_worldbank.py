@@ -3,7 +3,6 @@ import common
 import config
 import json
 import time
-import countries as c_countries
 import wbgapi as wb
 
 obj = None

@@ -28,7 +28,7 @@ def load_data(indicator, param_name, clear_table=False):
         if is_ok:
             countries = common.load_countries()
             answer = json.loads(answer)
-            token, is_ok = common.login_superadmin()
+            txt, is_ok, token, lang = common.login_superadmin()
             if clear_table:
                 # таблицу очистить
                 common.send_rest(
@@ -51,7 +51,7 @@ def load_data(indicator, param_name, clear_table=False):
                             format(param_name=param_name, date=year, country_id=country_id, value=value,
                                    schema=config.SCHEMA)
                         count += 1
-                        if count > 100:
+                        if count > 1000:
                             common.write_script_db(st_query)
                             st_query = ''
                             count = 0
@@ -123,7 +123,7 @@ def import_indicators():
 
     array = wb.series.info().table()
     values = list()
-    indicators = common.load_from_db('import', 'id, code, sh_name, name, name_rus', "sh_name='wb'")
+    indicators = common.load_from_db('import', "sh_name='wb'")
     for data in array:
         if data[0]:
             param = {"sh_name": "wb", "code": data[0], "name": data[1], "object_code": "countries",
@@ -133,3 +133,16 @@ def import_indicators():
                 param['id'] = indicator_id
             values.append(param)
     common.write_objects_db('import', values)
+
+
+# load_data('SP.DYN.AMRT.FE', 'sp_dyn_amrt_fe')  # Смертность взрослых женщин (на 1000 взрослых женщин)
+# load_data('SP.DYN.AMRT.MA', 'sp_dyn_amrt_ma')  # Смертность взрослых мужчин (на 1000 взрослых мужчин)
+# load_data('SP.DYN.CBRT.IN', 'sp_dyn_cbrt_in')  # Коэффициент рождаемости, общий (на 1000 человек)
+# load_data('SP.DYN.LE00.FE.IN', 'sp_dyn_le00_fe_in')  # Ожидаемая продолжительность жизни при рождении, женщины (лет)
+# load_data('SP.DYN.LE00.MA.IN', 'sp_dyn_le00_ma_in')  # Ожидаемая продолжительность жизни при рождении, мужчины (лет)
+# load_data('SP.DYN.WFRT', 'sp_dyn_wfrt')  # Желаемый коэффициент рождаемости (рождений на одну женщину)
+# load_data('SP.DYN.TO65.FE.ZS', 'sp_dyn_to65_fe_zs')  # Доживаемость до 65 лет, женщины (% когорты)
+# load_data('SP.DYN.TO65.MA.ZS', 'sp_dyn_to65_ma_zs')  # Доживаемость до 65 лет, мужчины (% когорты)
+# load_data('SP.POP.0014.TO.ZS', 'sp_pop_0014_to_zs')  # Население в возрасте 0–14 лет (% от общей численности населения)
+# load_data('SP.POP.1564.TO.ZS', 'sp_pop_1564_to_zs')  # Население в возрасте 15–64 лет (% от общей численности населения)
+# load_data('SP.POP.65UP.TO.ZS', 'sp_pop_65up_to_zs')  # Население в возрасте 65 лет и старше (% от общей численности населения)

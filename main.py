@@ -13,6 +13,12 @@ import t_numbeo
 import t_clear_logs
 import t_statdata
 import t_tradingeconomics
+import t_wikipedia
+import t_indonesia
+import t_spain
+import t_georgia
+import t_courses
+import t_meteo
 import countries
 import un
 import bigmac
@@ -23,6 +29,8 @@ import turkey
 import russia
 import wikipedia
 from requests.utils import DEFAULT_CA_BUNDLE_PATH
+import geopy
+import geocoder
 
 version = '1.0.1 2024-03-02'
 
@@ -48,8 +56,8 @@ if __name__ == '__main__':
 
     # countries.load_courses('2024-02-10')  # загрузка курсов валюты стран за указанные сутки
 
-    # tables_csv.load_inform('source/ourworldindata/population-change.csv', 'population_change', index_value=2)  # Общий прирост населения
-    # tables_csv.load_inform('source/ourworldindata/population.csv', 'pops', index_value=2)  # Общее население
+    # tables_csv.load_inform('source/ourworldindata/population_change.csv', 'population_change', index_value=2)  # Общий прирост населения
+    # tables_csv.load_inform('source/ourworldindata/pops.csv', 'pops', index_value=2)  # Общее население
     # tables_csv.load_inform('source/ourworldindata/cost-healthy-diet.csv', 'cost_hd', index_code=1, index_year=2,
     #                        index_value=3)  # Суточная стоимость здорового питания (дол)
     # tables_csv.load_inform('source/ourworldindata/human-development-index.csv', 'hdi', index_code=1, index_year=2,
@@ -79,33 +87,50 @@ if __name__ == '__main__':
     # for row in wb.data.DataFrame(['VC.IHR.PSRC.P5'], time=range(2000, 2024)):  # all years
     #     print(row)
     # turkey.sale_foreign_tourists(25)
-    # wikipedia.get_corruption_index()
 
     common.write_log_db(
-        'START', 'WebParser', 'Старт сервиса подкачки статистической информации \n' +
-        '; version: ' + version +
+        'START', 'WebParser', 'Старт сервиса подкачки статистической информации;\n' +
+        ' version: ' + version +
         '; host: ' + config.URL +
         '; schema: ' + config.SCHEMA,
         file_name=common.get_computer_name()
     )
 
-    t_statdata.obj = t_statdata.StatData('Крупные города', 'statdata')
-    t_statdata.obj.start()
+    # t_statdata.obj = t_statdata.StatData('Крупные города', 'statdata')
+    # t_statdata.obj.start()
 
-    t_countries.obj = t_countries.Countries('Описание стран', 'countries')
-    t_countries.obj.start()
+    # t_countries.obj = t_countries.Countries('Описание стран', 'countries')
+    # t_countries.obj.start()
 
-    t_worldbank.obj = t_worldbank.Wb('Всемирный банк', 'wb')
-    t_worldbank.obj.start()
+    # t_worldbank.obj = t_worldbank.Wb('Всемирный банк', 'wb')
+    # t_worldbank.obj.start()
 
-    t_numbeo.obj = t_numbeo.Numbeo('Numbeo', 'numbeo')
-    t_numbeo.obj.start()
+    # t_numbeo.obj = t_numbeo.Numbeo('Numbeo', 'numbeo')
+    # t_numbeo.obj.start()
 
-    t_tradingeconomics.obj = t_tradingeconomics.TradingEconomics('Tradingeconomics', 'trading')
-    t_tradingeconomics.obj.start()
+    # t_tradingeconomics.obj = t_tradingeconomics.TradingEconomics('Tradingeconomics', 'trading')
+    # t_tradingeconomics.obj.start()
+
+    # t_wikipedia.obj = t_wikipedia.Wikipedia('Википедия', 'wikipedia')
+    # t_wikipedia.obj.start()
+
+    # t_indonesia.obj = t_indonesia.Indonesia('Индонезия', 'indonesia')
+    # t_indonesia.obj.start()
+
+    # t_spain.obj = t_spain.Spain('Испания', 'spain')
+    # t_spain.obj.start()
 
     t_clear_logs.obj = t_clear_logs.ClearLogs('Чистка лога', 'clear_logs')
     t_clear_logs.obj.start()
+
+    t_courses.obj = t_courses.Courses('Курсы валют', 'courses')
+    t_courses.obj.start()
+
+    t_meteo.obj = t_meteo.Meteo('Метео по городам', 'meteo')
+    t_meteo.obj.start()
+
+    t_georgia.obj = t_georgia.Georgia('Грузия', 'georgia')
+    t_georgia.obj.start()
 
     while True:
         time.sleep(5)

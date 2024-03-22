@@ -47,6 +47,7 @@ def prepare_countries(answer, continents):
                     break
         params = {"sh_name": cur['common'], "official": cur['official'], "name_rus": name_rus,
                   "official_rus": official_rus, "code": data["cca3"] if "cca3" in data else '',
+                  "cca2": data["cca2"] if "cca2" in data else '',
                   "landlocked": data["landlocked"],
                   "start_of_week": data["startOfWeek"], "status": data["status"]}
         if "independent" in data:

@@ -15,11 +15,9 @@ def get_value_config_param(key, par, default=1):
 
 
 def load_config_params(name_function):
-    url = "v1/view/{schema}/v_nsi_parser_functions?where=sh_name='{name_function}'".format(
+    url = "v1/select/{schema}/nsi_parser_functions?where=sh_name='{name_function}'".format(
         schema=config.SCHEMA, name_function=name_function)
-    params = {"0": "id", "1": "sh_name", "2": "description", "3": "active", "4": "period", "5": "compliment",
-              "6": "at_date_time"}
-    answer, is_ok, status_code = common.send_rest(url, params=params)
+    answer, is_ok, status_code = common.send_rest(url)
     if is_ok:
         answer = json.loads(answer)[0]
         return answer
@@ -45,7 +43,11 @@ def get_difference_config_params(par, list_parameters):
 
     st_param_work = ''
     st_param_work += get_param_work('active', list_parameters['active'])
-    st_param_work += get_param_work('period', list_parameters['period'], ' days')
+    if float(list_parameters['period']) < 0:
+        st_param_work += get_param_work('period', str(abs(float(list_parameters['period']))), ' minutes')
+    else:
+        st_param_work += get_param_work('period', list_parameters['period'], ' days')
+
     if list_parameters['at_date_time']:
         st_param_work += get_param_work('at_date_time', list_parameters['at_date_time'].replace('T', ' '))
     return st_difference, st_param_work
@@ -96,7 +98,10 @@ class PatternThread(threading.Thread):
 
     def make_next_time(self, value_day, from_time):
         self.from_time = from_time
-        self.next_time = from_time + value_day * 86400
+        if value_day < 0:
+            self.next_time = from_time + abs(value_day) * 60
+        else:
+            self.next_time = from_time + value_day * 86400
 
     def define_next_time(self):
         if self.next_time is None or self.next_time == 0:
@@ -108,10 +113,20 @@ class PatternThread(threading.Thread):
     def analysis_changing_parameters(self, list_parameters):
         st_difference, st_param_work = get_difference_config_params(self.par, list_parameters)
         self.par = list_parameters
+        n = get_value_config_param('period', self.par)
+        n = abs(n) * 60 if n < 0 else n * 86400
+        st_first = time.asctime(time.gmtime())
+        if list_parameters['at_date_time'] and self.first_cycle:
+            dt = datetime.datetime.strptime(list_parameters['at_date_time'], "%Y-%m-%dT%H:%M:%S")
+            self.next_time = dt.timestamp() + n
+            if time.mktime(time.gmtime()) >= self.next_time:
+                self.next_time = time.mktime(time.gmtime())
+            st_first = time.ctime(self.next_time)
         if self.first_cycle:
-            cd.write_log_db('Параметры работы', self.source, st_param_work.strip() + ' ' + self.get_compliment(),
-                            file_name=get_computer_name() + '\n поток="' + self.code_parser + '"',
-                            token_admin=self.token)
+            cd.write_log_db(
+                'Параметры работы', self.source, st_param_work.strip() + ' ' + self.get_compliment() + '; факт старт в ' + st_first,
+                file_name=get_computer_name() + '\n поток="' + self.code_parser + '"',
+                token_admin=self.token)
         if st_difference != '' and not self.first_cycle:
             cd.write_log_db(
                 'Изменение параметров', self.source, st_difference.strip(),
@@ -125,15 +140,9 @@ class PatternThread(threading.Thread):
                     'Новая планируемая активность в ' + time.asctime(time.gmtime(self.next_time)),
                     file_name=get_computer_name() + '\n поток="' + self.code_parser + '"',
                     token_admin=self.token)
-        if list_parameters['at_date_time'] and self.first_cycle:
-            dt = datetime.datetime.strptime(list_parameters['at_date_time'], "%Y-%m-%dT%H:%M:%S")
-            self.make_next_time(get_value_config_param('period', self.par, self.period_default), dt.timestamp())
-            # cd.write_log_db(
-            #     'Коррекция активности', self.source,
-            #     'Старая планируемая активность в ' + time.ctime(self.from_time) + '\n' +
-            #     'Новая планируемая активность в ' + time.ctime(self.next_time),
-            #     file_name=get_computer_name() + '\n поток="' + self.code_parser + '"',
-            #     token_admin=self.token)
+        # if list_parameters['at_date_time'] and self.first_cycle:
+        #     dt = datetime.datetime.strptime(list_parameters['at_date_time'], "%Y-%m-%dT%H:%M:%S")
+        #     self.make_next_time(get_value_config_param('period', self.par, self.period_default), dt.timestamp())
         self.first_cycle = False
 
     def initiation_parameters(self):
@@ -149,8 +158,8 @@ class PatternThread(threading.Thread):
         txt, is_ok, self.token, self.lang = cd.login_superadmin()
         if not is_ok:
             print('ERROR', self.source,
-                            'Ошибка при login с RestAPI: ' + str(txt) + '. Ожидаем минуту',
-                            get_computer_name() + '\n поток="' + self.code_parser + '"')
+                  'Ошибка при login с RestAPI: ' + str(txt) + '. Ожидаем минуту',
+                  get_computer_name() + '\n поток="' + self.code_parser + '"')
             return False
         return True
 
@@ -164,11 +173,11 @@ class PatternThread(threading.Thread):
         cd.write_log_db('RUN', self.source, self.get_description(),
                         file_name=get_computer_name() + '\n поток="' + self.code_parser + '"',
                         token_admin=self.token)
-        self.from_time = time.time()
-        self.time_begin = time.time()
-        self.next_time = time.time()
+        self.from_time = time.mktime(time.gmtime())
+        self.time_begin = time.mktime(time.gmtime())
+        self.next_time = time.mktime(time.gmtime())
         while True:
-            self.time_start = time.time()
+            self.time_start = time.mktime(time.gmtime())
             self.finish_text = ''
             list_parameters = load_config_params(self.code_parser)  # словарь считанных параметров для сервиса
             try:
@@ -177,7 +186,7 @@ class PatternThread(threading.Thread):
                         self.first_cycle = True
                     self.analysis_changing_parameters(list_parameters)
                     # анализ изменения параметров и реакция на это
-                if time.time() >= self.next_time:  # подошло время работать
+                if time.mktime(time.gmtime()) >= self.next_time:  # подошло время работать
                     last_time = self.next_time
                     sleep = get_value_config_param('active', self.par) != 1
                     if sleep:
@@ -188,18 +197,19 @@ class PatternThread(threading.Thread):
                     if sleep or not self.work():
                         self.next_time = last_time
                     else:
+                        n = get_value_config_param('period', self.par)
+                        n = abs(n) * 60 if n < 0 else n * 86400
                         self.from_time = self.time_start
-                        self.next_time = self.time_start + get_value_config_param('period', self.par) * 86400
-                        st = 'Тайм-аут ' + cd.get_duration(get_value_config_param(
-                            'period', self.par) * 86400) + ' до ' + time.asctime(time.gmtime(self.next_time))
+                        self.next_time = self.time_start + n
+                        st = 'Тайм-аут ' + cd.get_duration(n) + ' до ' + time.ctime(self.next_time)
                         cd.write_log_db('Finish', self.source, st + '.\n' + self.finish_text,
-                                        td=time.time() - self.time_start,
+                                        td=time.mktime(time.gmtime()) - self.time_start,
                                         file_name=get_computer_name() + '\n поток="' + self.code_parser + '"',
                                         token_admin=self.token)
                         set_value_config_param('at_date_time', self.par, common.st_now(), token=self.token)
             except Exception as err:
                 cd.write_log_db('Exception', self.source, f"{err} сервер=" + get_computer_name(),
-                                td=time.time() - self.time_start,
+                                td=time.mktime(time.gmtime()) - self.time_start,
                                 file_name=self.st_filename + '\n поток="' + self.code_parser + '"',
                                 law_id=self.st_law_id, token_admin=self.token)
             time_out = 60 - (time.time() - self.time_start)
