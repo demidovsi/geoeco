@@ -18,7 +18,7 @@ def load_config_params(name_function):
     url = "v1/select/{schema}/nsi_parser_functions?where=sh_name='{name_function}'".format(
         schema=config.SCHEMA, name_function=name_function)
     answer, is_ok, status_code = common.send_rest(url)
-    if is_ok:
+    if is_ok and len(answer) > 0:
         answer = json.loads(answer)[0]
         return answer
 
@@ -105,7 +105,7 @@ class PatternThread(threading.Thread):
 
     def define_next_time(self):
         if self.next_time is None or self.next_time == 0:
-            self.next_time = time.time()
+            self.next_time = time.mktime(time.gmtime())
         else:
             self.make_next_time(get_value_config_param('period', self.par, self.period_default),
                                 self.from_time)
@@ -124,7 +124,8 @@ class PatternThread(threading.Thread):
             st_first = time.ctime(self.next_time)
         if self.first_cycle:
             cd.write_log_db(
-                'Параметры работы', self.source, st_param_work.strip() + ' ' + self.get_compliment() + '; факт старт в ' + st_first,
+                'Параметры работы', self.source,
+                st_param_work.strip() + ' ' + self.get_compliment() + '; факт старт в ' + st_first,
                 file_name=get_computer_name() + '\n поток="' + self.code_parser + '"',
                 token_admin=self.token)
         if st_difference != '' and not self.first_cycle:
@@ -152,7 +153,7 @@ class PatternThread(threading.Thread):
         pass
 
     def get_duration(self):
-        return common.get_duration(time.time() - self.time_begin)
+        return common.get_duration(time.mktime(time.gmtime()) - self.time_begin)
 
     def make_login(self):
         txt, is_ok, self.token, self.lang = cd.login_superadmin()
@@ -177,7 +178,7 @@ class PatternThread(threading.Thread):
         self.time_begin = time.mktime(time.gmtime())
         self.next_time = time.mktime(time.gmtime())
         while True:
-            self.time_start = time.mktime(time.gmtime())
+            time0 = time.mktime(time.gmtime())
             self.finish_text = ''
             list_parameters = load_config_params(self.code_parser)  # словарь считанных параметров для сервиса
             try:
@@ -187,6 +188,7 @@ class PatternThread(threading.Thread):
                     self.analysis_changing_parameters(list_parameters)
                     # анализ изменения параметров и реакция на это
                 if time.mktime(time.gmtime()) >= self.next_time:  # подошло время работать
+                    self.time_start = time.mktime(time.gmtime())
                     last_time = self.next_time
                     sleep = get_value_config_param('active', self.par) != 1
                     if sleep:
@@ -199,7 +201,8 @@ class PatternThread(threading.Thread):
                     else:
                         n = get_value_config_param('period', self.par)
                         n = abs(n) * 60 if n < 0 else n * 86400
-                        self.from_time = self.time_start
+                        # self.from_time = self.time_start
+                        self.from_time = self.next_time
                         self.next_time = self.time_start + n
                         st = 'Тайм-аут ' + cd.get_duration(n) + ' до ' + time.ctime(self.next_time)
                         cd.write_log_db('Finish', self.source, st + '.\n' + self.finish_text,
@@ -209,10 +212,12 @@ class PatternThread(threading.Thread):
                         set_value_config_param('at_date_time', self.par, common.st_now(), token=self.token)
             except Exception as err:
                 cd.write_log_db('Exception', self.source, f"{err} сервер=" + get_computer_name(),
-                                td=time.mktime(time.gmtime()) - self.time_start,
+                                td=time.mktime(time.gmtime()) - time0,
                                 file_name=self.st_filename + '\n поток="' + self.code_parser + '"',
                                 law_id=self.st_law_id, token_admin=self.token)
-            time_out = 60 - (time.time() - self.time_start)
+            time_out = 60 - (time.mktime(time.gmtime()) - time0)
             if time_out <= 0:
                 time_out = 60
+            # if self.code_parser == 'meteo':
+            #     print('Сейчас='+time.ctime(), 'Время запуска='+time.ctime(self.next_time), 'time-out', time_out)
             time.sleep(time_out)

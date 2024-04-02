@@ -10,11 +10,17 @@ from deep_translator import GoogleTranslator
 
 
 def load_data(indicator, param_name, clear_table=False):
-    def write_db(st):
-        ans, ok, status = common.send_rest('v1/NSI/script/execute', 'PUT', st, lang='en', token_user=token)
-        if not ok:
-            print(ans)
-
+    coefficient = 1
+    url = "v1/select/{schema}/nsi_import?where=sh_name='wb' and code='{indicator}'".format(
+        schema=config.SCHEMA, indicator=indicator)
+    answer, is_ok, status = common.send_rest(url)
+    if not is_ok:
+        print(str(answer))
+        return
+    data = json.loads(answer)[0]
+    if data['coefficient']:
+        coefficient = data['coefficient']
+    param_name = data['param_name']
     # узнать сколько элементов имеется всего
     url = "{url_wordbank}{indicator}?format=json&page=1&per_page=1000".format(
         url_wordbank=config.url_wordbank, indicator=indicator)
@@ -47,8 +53,8 @@ def load_data(indicator, param_name, clear_table=False):
                     if country_id:  # есть такая страна
                         value = unit['value']
                         year = int(unit['date'])
-                        st_query += "select {schema}.pw_his('{param_name}', '{date}-12-01', {country_id}, {value});".\
-                            format(param_name=param_name, date=year, country_id=country_id, value=value,
+                        st_query += "select {schema}.pw_his('{param_name}', '{date}-12-01', {country_id}, {value}); select 1;\n".\
+                            format(param_name=param_name, date=year, country_id=country_id, value=value * coefficient,
                                    schema=config.SCHEMA)
                         count += 1
                         if count > 1000:
@@ -146,3 +152,6 @@ def import_indicators():
 # load_data('SP.POP.0014.TO.ZS', 'sp_pop_0014_to_zs')  # Население в возрасте 0–14 лет (% от общей численности населения)
 # load_data('SP.POP.1564.TO.ZS', 'sp_pop_1564_to_zs')  # Население в возрасте 15–64 лет (% от общей численности населения)
 # load_data('SP.POP.65UP.TO.ZS', 'sp_pop_65up_to_zs')  # Население в возрасте 65 лет и старше (% от общей численности населения)
+# load_data('BN.KLT.DINV.CD', '')  # Прямые иностранные инвестиции, чистые (платежный баланс, текущие доллары США)
+load_data('BX.KLT.DINV.CD.WD', '')  # Прямые иностранные инвестиции, чистый приток (платежный баланс, текущие доллары США)
+# load_data('BM.KLT.DINV.CD.WD', '')  # Прямые иностранные инвестиции, чистый отток (платежный баланс, текущие доллары США)

@@ -64,3 +64,14 @@ class Courses(trafaret_thread.PatternThread):
     def work(self):
         super(Courses, self).work()
         return self.load_courses(common.st_yesterday())
+
+
+# url = "https://api.apilayer.com/currency_data/timeframe?start_date={start_date}&end_date={end_date}".format(
+#     start_date='2024-01-01', end_date='2024-03-01'
+# )
+# headers = {"apikey": api_key}
+# payload = {}
+# прочитать валюту с сайта
+# response = requests.request('GET', url, headers=headers, timeout=300, data=payload)
+# if response.ok:
+#     status = json.loads(response.text)

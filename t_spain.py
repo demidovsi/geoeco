@@ -58,6 +58,9 @@ class Spain(trafaret_thread.PatternThread):
                 if data['param_name'] in ['pops', 'area'] and data['object_code'] == 'provincies':
                     # записать провинции и города, а также население и площадь провинций Испании
                     count_row = self.get_spain_provinces(data, country_id)
+                if data['param_name'] in ['pops'] and data['object_code'] == 'cities':
+                    # записать города, а также население городов Испании
+                    count_row = self.get_spain_cities(data, country_id)
                 if count_row and count_row != 0:
                     result += count_row
         return result != 0
@@ -180,9 +183,11 @@ class Spain(trafaret_thread.PatternThread):
         if city_id is None:
             values = dict()
             values["country"] = country_id
-            values["province"] = province_id
-            values['sh_name'] = GoogleTranslator(source='ru', target='en').translate(name)
-            values['name_rus'] = name
+            if province_id:
+                values["province"] = province_id
+            values['name_rus'] = GoogleTranslator(source='es', target='ru').translate(name)
+            values['sh_name'] = GoogleTranslator(source='es', target='en').translate(name)
+            values['name_own'] = name
             # записать новый город
             params = {"schema_name": config.SCHEMA, "object_code": "cities", "values": values}
             ans, ok, status_result = common.send_rest('v1/objects', 'PUT', params=params, token_user=self.token)
@@ -191,3 +196,60 @@ class Spain(trafaret_thread.PatternThread):
             else:
                 need_reload = True
         return need_reload
+
+    def get_spain_cities(self, elem, country_id):
+        """
+        Определение провинций (площадь или население)
+        :param elem:
+        :param country_id:
+        :return:
+        """
+        def get_name(name):
+            return name.strip().split('(')[0]
+
+        lws = self.load_html(elem['code'])
+        if lws:
+            lws = BeautifulSoup(lws, 'html.parser').find_all('table')[0]. \
+                find_all('tbody')[0].find_all('tr')
+        if lws is None:
+            return None, None
+        year = 2024
+        # lws = lws[1:]
+
+        # обновить список городов
+        cities = common.load_from_db('cities', 'country={country}'.format(country=country_id))
+        need_reload = False
+        for data in lws:
+            unit = data.find_all('td')
+            name = get_name(unit[0].text)
+            if self.refresh_cities(name, country_id, None, cities):
+                need_reload = True
+
+        if need_reload:
+            # прочитать обновленный список городов
+            cities = common.load_from_db('cities', 'country={country}'.format(country=country_id))
+        # для городов записать информацию по колонке
+        st_query = ''
+        st_city = ''
+        count_row = 0
+        for data in lws:
+            unit = data.find_all('td')
+            value = unit[1].text.replace(chr(194), '').replace(chr(160), '').replace(' ', '')
+            name = get_name(unit[0].text)
+            city_id = common.get_city_id(name, cities, pr=False)
+            if value:
+                count_row += 1
+                st_query += "select {schema}.pw_his_cities('{param_name}', '{date}', {city_id}, {value});\n".\
+                    format(date=str(year) + '-01-01', city_id=city_id, value=value, schema=config.SCHEMA,
+                           param_name=elem['param_name'])
+                st_city += "update {schema}.nsi_cities set population={value} where id={city_id};select 1;\n". \
+                    format(city_id=city_id, value=value, schema=config.SCHEMA)
+        common.write_script_db(st_query, self.token)
+        common.write_script_db(st_city, self.token)
+        return count_row
+
+
+# Spain('Испания', 'spain').start()
+# while True:
+#     time.sleep(5)
+#

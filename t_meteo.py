@@ -1,9 +1,12 @@
+import time
+
 import trafaret_thread
 import common
 import config
 import json
 import datetime
 import requests
+import math
 from requests.adapters import HTTPAdapter
 from requests.exceptions import HTTPError
 
@@ -18,9 +21,10 @@ class Meteo(trafaret_thread.PatternThread):
 
     def work(self):
         super(Meteo, self).work()
+        calc_avr_day()
         return self.load_meteo()
 
-    def send_url(self, url, api_id, x, y, directive="GET", qrepeat=2) -> (str, bool):
+    def send_url(self, url, api_id, lon, lat, directive="GET", qrepeat=2) -> (str, bool):
         result = False
         data = ''
         q = 0
@@ -29,7 +33,7 @@ class Meteo(trafaret_thread.PatternThread):
                 headers = {
                     "Accept": "application/json"
                 }
-                mes = '?lat=' + str(x) + '&lon=' + str(y) + '&appid=' + api_id + '&units=metric'
+                mes = '?lat=' + str(lat) + '&lon=' + str(lon) + '&appid=' + api_id + '&units=metric'
                 response = requests.request(directive, url + mes, headers=headers)
                 return response.text, response.ok
                 # print(url + mes)
@@ -47,6 +51,7 @@ class Meteo(trafaret_thread.PatternThread):
 
     def load_meteo(self):
         count_row = 0
+        t0 = time.time()
         par = trafaret_thread.get_value_config_param('compliment_txt', self.par)
         url = 'v1/select/{schema}/nsi_cities?where=need_meteo and lat is not null and lon is not null'.\
             format(schema=config.SCHEMA)
@@ -65,11 +70,14 @@ class Meteo(trafaret_thread.PatternThread):
                     sql_text += "insert into {schema}.his_cities_meteo (cities_id, dt, value) values ({city_id}, " \
                                 "'{dt}', '{val}'); select 1;".format(schema=config.SCHEMA, city_id=data['id'],
                                                                      val=str(val).replace("'", '"'), dt=st)
+                else:
+                    common.write_log_db(
+                        'ERROR', self.source, 'lat=' + str(data['lat']) + '; lon=' + str(data['lon']) + '; ' +
+                        str(txt) + ': ' + par['url'] + '; Загружено {count} записей по погоде'.format(count=count_row),
+                        token_admin=self.token, td=time.time() - t0)
+
             common.write_script_db(sql_text, token=self.token)
             self.finish_text = 'Загружено {count} записей по погоде'.format(count=count_row)
-            # txt, result, status = common.send_rest('v1/execute', 'PUT', params=txt, token_user=self.token)
-            # if not result or ('error_sql' in txt):
-            #     common.write_log_db('ERROR', self.source, par['url'], token_admin=self.token)
         else:
             common.write_log_db('ERROR', self.source, par['url'], token_admin=self.token)
         return count_row > 0
@@ -78,7 +86,9 @@ class Meteo(trafaret_thread.PatternThread):
 def get_lat_lon_cities():
     # определение и запись в таблицу городов географических координат городов, у которых они не заданы
     answer, is_ok, status = common.send_rest(
-        'v1/select/{schema}/v_nsi_cities?type_view=view&where=lat is null or lon is null'.format(schema=config.SCHEMA),
+        # 'v1/select/{schema}/v_nsi_cities?where=lat is null or lon is null'.format(schema=config.SCHEMA),
+        'v1/select/{schema}/v_nsi_cities'.format(schema=config.SCHEMA),
+        # 'v1/select/{schema}/v_nsi_cities'.format(schema=config.SCHEMA),
         params={'columns': 'id, sh_name, name_country'})
     if not is_ok:
         print(answer)
@@ -106,4 +116,80 @@ def get_lat_lon_cities():
         common.write_script_db(sql_text)
 
 
-get_lat_lon_cities()
+array_keys = [
+    'temp', 'feels_like', 'pressure', 'humidity', 'dew_point', 'uvi', 'clouds', 'visibility', 'wind_speed',
+    'wind_deg', 'wind_gust', 'sunrise', 'sunset'
+]
+
+
+def calc_avr_day():
+    """
+    Рассчитать среднесуточные значения метео информации
+    :return:
+    """
+    url = "v1/select/{schema}/get_absent_date_avr_day()?column_order=date&where=date<'{today}'".format(
+        schema=config.SCHEMA, today=common.st_today())
+    days, is_ok, status = common.send_rest(url)
+    if not is_ok:
+        common.write_log_db('ERROR', 'get_absent_date_avr_day: ' + url, str(days))
+        return
+    days = json.loads(days)
+    for i in range(len(days)):
+        date = days[i]['0']
+        url = "v1/select/{schema}/get_cities_day('{dt}')".format(schema=config.SCHEMA, dt=date)
+        units, is_ok, status = common.send_rest(url)
+        if not is_ok:
+            common.write_log_db('ERROR', 'get_cities_day: ' + url, str(days))
+            return
+        units = json.loads(units)
+        # средние значения, которые нужно рассчитать
+        sql_text = ''
+        for unit in units:
+            city_id = unit['0']
+            value = dict()  # для среднесуточных значений
+            value['duration'] = 0
+            for key in array_keys:
+                value[key] = 0
+                value['count_' + key] = 0
+                value['sco_' + key] = 0
+                value['max_' + key] = None
+                value['min_' + key] = None
+            url = "v1/select/{schema}/his_cities_meteo?where=cities_id={city_id} and " \
+                  "substring(dt::text from 1 for 10)='{date}'".format(schema=config.SCHEMA, date=date, city_id=city_id)
+            values, is_ok, status = common.send_rest(url)  # значения погоды города
+            if not is_ok:
+                common.write_log_db('ERROR', url, str(values))
+                return
+            values = json.loads(values)
+            count = 0
+            for elem in values:
+                data = elem['value']
+                value['duration'] = value['duration'] + (data['sunset'] - data['sunrise']) / 3600
+                count += 1
+                for key in array_keys:
+                    if key in data:
+                        value['count_' + key] = value['count_' + key] + 1
+                        value[key] = value[key] + data[key]
+                        value['max_'+key] = max(data[key], value['max_'+key]) if value['max_'+key] else data[key]
+                        value['min_'+key] = min(data[key], value['min_'+key]) if value['min_'+key] else data[key]
+            value['duration'] = value['duration'] / count
+            for key in array_keys:
+                if value['count_' + key] != 0:
+                    value[key] = value[key] / value['count_' + key]
+            # рассчитать ско
+            for elem in values:
+                data = elem['value']
+                for key in array_keys:
+                    if key in data:
+                        value['sco_' + key] = value['sco_' + key] + (data[key] - value[key])**2
+            for key in array_keys:
+                if value['count_' + key] != 0:
+                    value['sco_' + key] = math.sqrt(value['sco_' + key]) / value['count_' + key]
+
+            sql_text += "insert into {schema}.avr_cities_meteo_day(cities_id, date, value) values ({city_id}, " \
+                        "'{dt}', '{val}'); select 1;\n".format(schema=config.SCHEMA, city_id=city_id,
+                                                               val=str(value).replace("'", '"'), dt=date)
+        common.write_script_db(sql_text)
+
+# get_lat_lon_cities()
+# calc_avr_day()

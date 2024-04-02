@@ -20,8 +20,7 @@ class Wb(trafaret_thread.PatternThread):
     def load_list_indicators(self):
         url = "v1/select/{schema}/nsi_import?where=sh_name='{code_function}' and active".format(
             schema=config.SCHEMA, code_function=self.code_parser)
-        answer, is_ok, status = common.send_rest(
-            url, params={"columns": "id, name_rus, param_name, code, period, object_code"})
+        answer, is_ok, status = common.send_rest(url)
         result = 0
         index = 0
         if is_ok:
@@ -35,8 +34,7 @@ class Wb(trafaret_thread.PatternThread):
                 if data['object_code'] != 'countries':
                     continue
                 t0 = time.time()
-                count_row, st_absent = self.import_data(
-                    data['code'], param_name=data['param_name'], countries=countries)
+                count_row, st_absent = self.import_data(data, countries=countries)
                 if count_row and count_row != 0:
                     result += count_row
                     st = data['name_rus']
@@ -50,18 +48,15 @@ class Wb(trafaret_thread.PatternThread):
                         token_admin=self.token)
         return result != 0
 
-    def import_data(self, indicator, param_name=None, countries=None):
+    def import_data(self, data, countries=None):
         """
-        Импорт данных по индикатору и запись их в БД. Код параметра выбирается из nsi_import.
-        :param indicator:
-        :param param_name:
+        Импорт данных по индикатору и запись их в БД. Код параметра и индикатор задаются в nsi_import.
+        :param data:
         :param countries:
         :return:
         """
-        if param_name is None:
-            param_name = common.get_param_name_by_indicator(indicator, 'wb')
-        if param_name is None:
-            print('Не удалось определить имя параметра для', indicator)
+        if data['param_name'] is None:
+            print('Не задано имя параметра для', data['code'])
             return None, ''
         if countries is None:
             countries = common.load_countries(self.token)
@@ -71,14 +66,14 @@ class Wb(trafaret_thread.PatternThread):
         st_query = ''
         st_absent = ''
         count = 0
-        for row in wb.data.fetch([indicator], skipBlanks=True):  # all years
+        for row in wb.data.fetch([data['code']], skipBlanks=True):  # all years
             if row['aggregate']:
                 continue  # агрегированные данные пропускаем
             country_id = common.get_country_id(None, countries, code=row['economy'], pr=False)
             if country_id:
                 date = row['time'][2:]
                 st_query += "select {schema}.pw_his('{param_name}', '{date}-12-01', {country_id}, {value});\n". \
-                    format(param_name=param_name, date=date, country_id=country_id, value=row['value'],
+                    format(param_name=data['param_name'], date=date, country_id=country_id, value=row['value'],
                            schema=config.SCHEMA)
                 count += 1
             else:

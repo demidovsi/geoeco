@@ -2,6 +2,7 @@
 import time
 import requests
 from requests.adapters import HTTPAdapter
+from bs4 import BeautifulSoup
 import json
 
 import common
@@ -47,3 +48,47 @@ def load_courses(st_date):
         common.write_script_db(st_query)
     else:
         print(response.status_code, response.text)
+
+
+def load_html(url, source):
+    t = time.time()
+    url = 'https://www.ixbt.com/mobile/country_code.html'
+    session = requests.Session()
+    session.mount(url, http_adapter)
+    r = session.get(url, timeout=(100, 100))
+    try:
+        if r.ok:
+            return r.text
+        else:
+            common.write_log_db(
+                'Error', source, str(r.status_code) + '; ' + r.text, td=time.time() - t,
+                file_name=common.get_computer_name())
+    except Exception as err:
+        st = f"{err}\n" + url
+        common.write_log_db('Exception', source, st, td=time.time() - t, file_name=common.get_computer_name())
+
+
+def load_phone_code():
+    ans, is_ok, token, lang = common.login_superadmin()
+    if not is_ok:
+        print('Error login')
+        return str(ans)
+    url = 'https://www.ixbt.com/mobile/country_code.html'
+    lws = load_html(url, source='phone_code')
+    if lws is None:
+        return
+    lws = BeautifulSoup(lws, 'html.parser').find_all('table')[8].find_all('tr')
+    lws = lws[1:]
+    countries = common.load_countries(token)
+    st_query = ''
+    for data in lws:
+        unit = data.find_all('td')
+        name = unit[0].text
+        code = unit[2].text
+        country_id = common.get_country_id(name, countries)
+        if country_id:
+            st_query += "update {schema}.nsi_countries set phone_code='{code}' where id={country_id}; select 1;\n". \
+                format(schema=config.SCHEMA, code=code.strip(), country_id=country_id)
+    common.write_script_db(st_query, token=token)
+
+# load_phone_code()

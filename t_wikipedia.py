@@ -40,7 +40,7 @@ class Wikipedia(trafaret_thread.PatternThread):
                 file_name=common.get_computer_name(), token_admin=self.token)
 
     def load_list_indicators(self):
-        url = "v1/select/{schema}/nsi_import?where=sh_name='wikipedia' and active".format(
+        url = "v1/select/{schema}/nsi_import?where=sh_name='{code_function}' and active".format(
             schema=config.SCHEMA, code_function=self.code_parser)
         answer, is_ok, status = common.send_rest(url)
         result = 0

@@ -17,6 +17,7 @@ import t_wikipedia
 import t_indonesia
 import t_spain
 import t_georgia
+import t_cyprus
 import t_courses
 import t_meteo
 import countries
@@ -54,29 +55,11 @@ if __name__ == '__main__':
     # ------------------ не задокументировано
     # bigmac.load_bm()  # !!! отдельная песня сделанная Кириллом через эксель и экспорт в свою базу
 
-    # countries.load_courses('2024-02-10')  # загрузка курсов валюты стран за указанные сутки
-
-    # tables_csv.load_inform('source/ourworldindata/population_change.csv', 'population_change', index_value=2)  # Общий прирост населения
-    # tables_csv.load_inform('source/ourworldindata/pops.csv', 'pops', index_value=2)  # Общее население
-    # tables_csv.load_inform('source/ourworldindata/cost-healthy-diet.csv', 'cost_hd', index_code=1, index_year=2,
-    #                        index_value=3)  # Суточная стоимость здорового питания (дол)
-    # tables_csv.load_inform('source/ourworldindata/human-development-index.csv', 'hdi', index_code=1, index_year=2,
-    #                        index_value=3)  # Индекс человеческого развития
-    # tables_csv.load_inform('source/ourworldindata/air-passengers-carried.csv', 'air_pass_carry', index_code=1,
-    #                        index_year=2, index_value=3)  # Количество перевезенных авиапассажиров
-    # tables_csv.load_inform('source/ourworldindata/tourism-gdp-proportion-of-total-gdp.csv', 'tourism_gdp_per',
-    #                        index_code=1, index_year=2, index_value=3)  # Количество перевезенных авиапассажиров
-    # tables_csv.load_inform(
-    #   'source/ourworldindata/average-length-of-stay.csv', 'av_day_of_stay',
-    #   index_code=1, index_year=2, index_value=3)  # Средняя продолжительность пребывания ин. гостей
-
     # ?????tables_html.load_trading('https://ru.tradingeconomics.com/country-list/full-year-gdp-growth')
     # ?????tables_html.load_trading('https://api.tradingeconomics.com/country/russia')
 
     # countries.receive_inform()  # взять информацию из API и записать в файл result.json
     # countries.load_list_countries()  # загрузить страны для границ
-    # countries.make_countries()  # прочитать не историческую информацию по странам
-    # countries.load_courses(common.st_today())  # загрузить курсы валют на текущий день
     # un.load_inform()
     # turkey.make_inform()  # отдельная обработка Турции
 
@@ -129,8 +112,11 @@ if __name__ == '__main__':
     t_meteo.obj = t_meteo.Meteo('Метео по городам', 'meteo')
     t_meteo.obj.start()
 
-    t_georgia.obj = t_georgia.Georgia('Грузия', 'georgia')
-    t_georgia.obj.start()
+    # t_cyprus.obj = t_cyprus.Cyprus('Кипр', 'cyprus')
+    # t_cyprus.obj.start()
+
+    # t_georgia.obj = t_georgia.Georgia('Грузия', 'georgia')
+    # t_georgia.obj.start()
 
     while True:
         time.sleep(5)

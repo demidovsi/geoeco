@@ -164,8 +164,11 @@ def load_countries(token=None):
 
 def get_country_id(name, countries, code=None, pr=True):
     try:
+        name = name.strip()
         if code is None:
             name = name.split('[')[0]
+            if name == 'USA':
+                name = 'United States'
             name = name.replace('<strong>', '').replace('</strong>', '').strip()
             name = name.strip().replace(' (China)', '').replace('Us', 'United States').replace('US', 'United States'). \
                 replace('Macao', 'Macau').replace('Lebenon', 'Lebanon').replace('США', 'United States'). \
@@ -219,6 +222,32 @@ def get_country_id(name, countries, code=None, pr=True):
                 name = 'Эритрея'
             if name in ["Микронезия"]:
                 name = 'Федеративные Штаты Микронезии'
+            if name == 'Brunei Darusalaam':
+                name = 'Бруней'
+            if name == 'Cocos Islands':
+                name = 'Кокосовые острова'
+            if name == 'Faeroe Islands':
+                name = 'Фарерские острова'
+            if name == 'Irish Republic':
+                name = 'Ирландия'
+            if name == 'Kiribati Republic':
+                name = 'Кирибати'
+            if name == 'Kirg(h)izia':
+                name = 'Киргизия'
+            if name == 'Macedonia':
+                name = 'Северная Македония'
+            if name == 'North Yemen':
+                name = 'Йемен'
+            if name == 'Reunion':
+                name = 'Реюньон'
+            if name == 'Rwandese Republic':
+                name = 'Руанда'
+            if name == 'Swaziland':
+                name = 'Свазиленд'
+            if name == 'Ta(d)jikistan':
+                name = 'Таджикистан'
+            if name == 'Zaire':
+                name = 'Демократическая Республика Конго'
             for country in countries:
                 if name.upper() in [country['sh_name'].upper(), country['official'].upper(), country['name_rus'].upper(),
                                     country['official_rus'].upper()]:
@@ -272,8 +301,17 @@ def get_region_id(name, regions, pr=True):
 
 def get_city_id(name_city, cities, pr=True):
     name_city = name_city.split('[')[0]
+    name_city = name_city.split('(')[0]
     name_city = name_city.replace('<strong>', '').replace('</strong>', '').strip()
     name_city = name_city.replace('NY', 'New York')
+    if name_city == 'Sevilla':
+        name_city = 'Seville'
+    if name_city == 'Málaga':
+        name_city = 'Malaga'
+    if name_city == 'Лимасол':
+        name_city = 'Лимассол'
+    if name_city == 'Тель-Авив-Яффо':
+        name_city = 'Тель-Авив'
     name_city = name_city.split('<strong>')
     if len(name_city) != 1:
         name_city = name_city[1]
@@ -282,7 +320,9 @@ def get_city_id(name_city, cities, pr=True):
     name_city = name_city.replace('NY', 'New York').split('</strong>')[0]
 
     for city in cities:
-        if name_city.upper() in [city['sh_name'].upper(), city['name_rus'].upper()]:
+        if city['name_own'] is None:
+            city['name_own'] = ''
+        if name_city.upper() in [city['sh_name'].upper(), city['name_rus'].upper(), city['name_own'].upper()]:
             return city['id']
     if pr:
         print('Absent city', name_city)
@@ -510,3 +550,16 @@ def time_for_sql(dt, convert=True) -> str:
         dt = dt.toPyDateTime()
     return str(dt.year) + '-' + str(dt.month).zfill(2) + '-' + str(dt.day).zfill(2) + ' ' + \
         str(dt.hour).zfill(2) + ':' + str(dt.minute).zfill(2) + ':' + str(dt.second).zfill(2)
+
+
+def utc_local(utc: datetime) -> datetime:
+    epoch = time.mktime(utc.timetuple())
+    offset = datetime.datetime.fromtimestamp(epoch) - datetime.datetime.utcfromtimestamp(epoch)
+    return utc + offset
+
+
+def local_utc(local: datetime) -> datetime:
+    """  Перевод local: datetime из локального времени в UTC: datetime """
+    epoch = time.mktime(local.timetuple())
+    offset = datetime.datetime.fromtimestamp(epoch) - datetime.datetime.utcfromtimestamp(epoch)
+    return local - offset
