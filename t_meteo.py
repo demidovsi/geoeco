@@ -186,9 +186,14 @@ def calc_avr_day():
                 if value['count_' + key] != 0:
                     value['sco_' + key] = math.sqrt(value['sco_' + key]) / value['count_' + key]
 
+            value_db = dict()
+            for key in value.keys():
+                if value[key] is not None:
+                    value_db[key] = value[key]
+
             sql_text += "insert into {schema}.avr_cities_meteo_day(cities_id, date, value) values ({city_id}, " \
                         "'{dt}', '{val}'); select 1;\n".format(schema=config.SCHEMA, city_id=city_id,
-                                                               val=str(value).replace("'", '"'), dt=date)
+                                                               val=str(value_db).replace("'", '"'), dt=date)
         common.write_script_db(sql_text)
 
 # get_lat_lon_cities()
