@@ -75,6 +75,8 @@ class Meteo(trafaret_thread.PatternThread):
                         'ERROR', self.source, 'lat=' + str(data['lat']) + '; lon=' + str(data['lon']) + '; ' +
                         str(txt) + ': ' + par['url'] + '; Загружено {count} записей по погоде'.format(count=count_row),
                         token_admin=self.token, td=time.time() - t0)
+                    count_row = 0
+                    break
 
             common.write_script_db(sql_text, token=self.token)
             self.finish_text = 'Загружено {count} записей по погоде'.format(count=count_row)

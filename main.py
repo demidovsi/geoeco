@@ -88,8 +88,8 @@ if __name__ == '__main__':
     # t_worldbank.obj = t_worldbank.Wb('Всемирный банк', 'wb')
     # t_worldbank.obj.start()
 
-    # t_numbeo.obj = t_numbeo.Numbeo('Numbeo', 'numbeo')
-    # t_numbeo.obj.start()
+    t_numbeo.obj = t_numbeo.Numbeo('Numbeo', 'numbeo')
+    t_numbeo.obj.start()
 
     # t_tradingeconomics.obj = t_tradingeconomics.TradingEconomics('Tradingeconomics', 'trading')
     # t_tradingeconomics.obj.start()
