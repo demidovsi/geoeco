@@ -80,7 +80,7 @@ if __name__ == '__main__':
         file_name=common.get_computer_name()
     )
 
-    t_un = t_unece.Unece('ООН', 'un')
+    t_unece.obj = t_unece.Unece('ООН', 'un')
     t_unece.obj.start()
 
     # t_statdata.obj = t_statdata.StatData('Крупные города', 'statdata')
