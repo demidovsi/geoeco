@@ -54,7 +54,12 @@ class Wb(trafaret_thread.PatternThread):
         :param data:
         :param countries:
         :return:
+        Индикатор запрашиваемой информации находится в data['code']
+        Код параметра в БД находится в data['param_name']
         """
+        if data['code'] is None:
+            print('Не задан индикатор параметра')
+            return None, ''
         if data['param_name'] is None:
             print('Не задано имя параметра для', data['code'])
             return None, ''
@@ -66,11 +71,14 @@ class Wb(trafaret_thread.PatternThread):
         st_query = ''
         st_absent = ''
         count = 0
+        list_country = list()
         for row in wb.data.fetch([data['code']], skipBlanks=True):  # all years
             if row['aggregate']:
                 continue  # агрегированные данные пропускаем
             country_id = common.get_country_id(None, countries, code=row['economy'], pr=False)
             if country_id:
+                if country_id not in list_country:
+                    list_country.append(country_id)
                 date = row['time'][2:]
                 st_query += "select {schema}.pw_his('{param_name}', '{date}-12-01', {country_id}, {value});\n". \
                     format(param_name=data['param_name'], date=date, country_id=country_id, value=row['value'],
@@ -81,4 +89,8 @@ class Wb(trafaret_thread.PatternThread):
                     st_absent = st_absent + ', ' if st_absent else st_absent
                     st_absent += row['economy']
         common.write_script_db(st_query, token=self.token)
-        return count, st_absent
+        return len(list_country), st_absent
+
+# Wb('Всемирный банк', 'wb').start()
+# while True:
+#     time.sleep(5)

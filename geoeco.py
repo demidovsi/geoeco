@@ -59,17 +59,8 @@ if __name__ == '__main__':
     # ?????tables_html.load_trading('https://ru.tradingeconomics.com/country-list/full-year-gdp-growth')
     # ?????tables_html.load_trading('https://api.tradingeconomics.com/country/russia')
 
-    # countries.receive_inform()  # взять информацию из API и записать в файл result.json
-    # countries.load_list_countries()  # загрузить страны для границ
-    # un.load_inform()
     # turkey.make_inform()  # отдельная обработка Турции
-
     # russia.load_inform()
-    # pd.set_option('display.max_rows', 6)
-    # for row in wb.data.fetch(['VC.IHR.PSRC.P5'], skipBlanks=True):  # all years
-    #     print(row)
-    # for row in wb.data.DataFrame(['VC.IHR.PSRC.P5'], time=range(2000, 2024)):  # all years
-    #     print(row)
     # turkey.sale_foreign_tourists(25)
 
     common.write_log_db(
@@ -80,47 +71,20 @@ if __name__ == '__main__':
         file_name=common.get_computer_name()
     )
 
-    t_unece.obj = t_unece.Unece('ООН', 'un')
-    t_unece.obj.start()
-
-    # t_statdata.obj = t_statdata.StatData('Крупные города', 'statdata')
-    # t_statdata.obj.start()
-
-    # t_countries.obj = t_countries.Countries('Описание стран', 'countries')
-    # t_countries.obj.start()
-
-    # t_worldbank.obj = t_worldbank.Wb('Всемирный банк', 'wb')
-    # t_worldbank.obj.start()
-
-    t_numbeo.obj = t_numbeo.Numbeo('Numbeo', 'numbeo')
-    t_numbeo.obj.start()
-
-    # t_tradingeconomics.obj = t_tradingeconomics.TradingEconomics('Tradingeconomics', 'trading')
-    # t_tradingeconomics.obj.start()
-
-    # t_wikipedia.obj = t_wikipedia.Wikipedia('Википедия', 'wikipedia')
-    # t_wikipedia.obj.start()
-
-    # t_indonesia.obj = t_indonesia.Indonesia('Индонезия', 'indonesia')
-    # t_indonesia.obj.start()
-
-    # t_spain.obj = t_spain.Spain('Испания', 'spain')
-    # t_spain.obj.start()
-
-    t_clear_logs.obj = t_clear_logs.ClearLogs('Чистка лога', 'clear_logs')
-    t_clear_logs.obj.start()
-
-    t_courses.obj = t_courses.Courses('Курсы валют', 'courses')
-    t_courses.obj.start()
-
-    t_meteo.obj = t_meteo.Meteo('Метео по городам', 'meteo')
-    t_meteo.obj.start()
-
-    # t_cyprus.obj = t_cyprus.Cyprus('Кипр', 'cyprus')
-    # t_cyprus.obj.start()
-
-    # t_georgia.obj = t_georgia.Georgia('Грузия', 'georgia')
-    # t_georgia.obj.start()
+    t_unece.Unece('ООН', 'un').start()
+    # t_statdata.StatData('Крупные города', 'statdata').start()
+    # t_countries.Countries('Описание стран', 'countries').start()
+    t_worldbank.Wb('Всемирный банк', 'wb').start()
+    t_numbeo.Numbeo('Numbeo', 'numbeo').start()
+    # t_tradingeconomics.TradingEconomics('Tradingeconomics', 'trading').start()
+    # t_wikipedia.Wikipedia('Википедия', 'wikipedia').start()
+    # t_indonesia.Indonesia('Индонезия', 'indonesia').start()
+    # t_spain.Spain('Испания', 'spain').start()
+    t_clear_logs.ClearLogs('Чистка лога', 'clear_logs').start()
+    t_courses.Courses('Курсы валют', 'courses').start()
+    t_meteo.Meteo('Метео по городам', 'meteo').start()
+    # t_cyprus.Cyprus('Кипр', 'cyprus').start()
+    # t_georgia.Georgia('Грузия', 'georgia').start()
 
     while True:
         time.sleep(5)

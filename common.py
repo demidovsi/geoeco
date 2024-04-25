@@ -165,8 +165,8 @@ def load_countries(token=None):
 
 def get_country_id(name, countries, code=None, pr=True):
     try:
-        name = name.strip()
         if code is None:
+            name = name.strip()
             name = name.split('[')[0]
             if name == 'USA':
                 name = 'United States'
