@@ -109,6 +109,6 @@ class Unece(trafaret_thread.PatternThread):
                 '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
                 token_admin=self.token)
 
-Unece('ООН', 'un').start()
-while True:
-    time.sleep(5)
+# Unece('ООН', 'un').start()
+# while True:
+#     time.sleep(5)
