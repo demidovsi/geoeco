@@ -17,6 +17,34 @@ class Wb(trafaret_thread.PatternThread):
         super(Wb, self).work()
         return self.load_list_indicators()
 
+    def check_import_metric(self):
+        super(Wb, self).check_import_metric()
+        if len(self.list_start_metric) == 0:
+            return
+        countries = common.load_countries(self.token)
+        if countries is None:
+            return
+        url = "v1/select/{schema}/nsi_import?where=sh_name='{code_function}'".format(
+            schema=config.SCHEMA, code_function=self.code_parser)
+        answer, is_ok, status = common.send_rest(url)
+        if not is_ok:
+            return
+        answer = json.loads(answer)
+        for indicator in self.list_start_metric:
+            t0 = time.time()
+            for data in answer:
+                if data['code'] == indicator:
+                    count_row, st_absent = self.import_data(data, countries=countries)
+                    if count_row and count_row != 0:
+                        st = data['name_rus']
+                        if st_absent:
+                            st += ';\n не найдены страны: "' + st_absent + '"'
+                        common.write_log_db(
+                            'import', self.source + ' (по запросу)', st, page=count_row, td=time.time() - t0,
+                            file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
+                                      '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
+                            token_admin=self.token)
+
     def load_list_indicators(self):
         url = "v1/select/{schema}/nsi_import?where=sh_name='{code_function}' and active".format(
             schema=config.SCHEMA, code_function=self.code_parser)

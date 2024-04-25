@@ -88,6 +88,7 @@ class PatternThread(threading.Thread):
     finish_text = ''
     st_filename = ''
     st_law_id = ''
+    list_start_metric = list()
 
     def __init__(self, source, code_parser):
         threading.Thread.__init__(self)
@@ -152,6 +153,25 @@ class PatternThread(threading.Thread):
     def work(self):
         pass
 
+    def check_import_metric(self):
+        # выполнение после каждой работы или тайм-аута
+        self.list_start_metric = []
+        answer, is_ok, status = common.send_rest(
+            "v1/select/{schema}/list_start_metric?where=sh_name='{sh_name}'".format(
+                schema=config.SCHEMA, sh_name=self.code_parser))
+        if not is_ok:
+            cd.write_log_db('Error', self.source, str(answer) + "; сервер= + get_computer_name()",
+                            file_name='поток="' + self.code_parser + '"', token_admin=self.token)
+            return
+        answer = json.loads(answer)
+        for data in answer:
+            self.list_start_metric.append(data['indicator'])
+        if len(self.list_start_metric) != 0:
+            sql_query = "delete from {schema}.list_start_metric where sh_name='{sh_name}'; select 1;".format(
+                schema=config.SCHEMA, sh_name=self.code_parser)
+            common.write_script_db(sql_query, token=self.token)
+
+
     def get_duration(self):
         return common.get_duration(time.mktime(time.gmtime()) - self.time_begin)
 
@@ -215,6 +235,7 @@ class PatternThread(threading.Thread):
                                 td=time.mktime(time.gmtime()) - time0,
                                 file_name=self.st_filename + '\n поток="' + self.code_parser + '"',
                                 law_id=self.st_law_id, token_admin=self.token)
+            self.check_import_metric()
             time_out = 60 - (time.mktime(time.gmtime()) - time0)
             if time_out <= 0:
                 time_out = 60
