@@ -6,6 +6,7 @@ import base64
 import time
 import datetime
 import socket
+import re
 
 app_lang = 'ru'
 rights = ''
@@ -178,6 +179,10 @@ def get_country_id(name, countries, code=None, pr=True):
                 replace('Республике Конго', 'Республика Конго').replace('Папуа - Новая Гвинея', 'Папуа — Новая Гвинея')
             if name in ['Саудов. Аравия']:
                 name = 'Саудовская Аравия'
+            if name in ['Республика Молдова']:
+                name = 'Молдавия'
+            if name in ['Соединенное Королевство']:
+                name = 'Великобритания'
             if name in ['Kosovo (Disputed Territory)', 'Косово']:
                 name = 'Республика Косово'
             if name in ['Конго', 'Congo', 'Democratic Republic of Congo', 'ДР Конго']:
@@ -563,3 +568,9 @@ def local_utc(local: datetime) -> datetime:
     epoch = time.mktime(local.timetuple())
     offset = datetime.datetime.fromtimestamp(epoch) - datetime.datetime.utcfromtimestamp(epoch)
     return local - offset
+
+
+def is_number(s):
+    if re.match("^\d+?\.\d+?$", s) is None:
+        return s.isdigit()
+    return True

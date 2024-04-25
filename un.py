@@ -1,3 +1,4 @@
+# не актуально - история
 import common
 import config
 import countries as c_countries
@@ -57,4 +58,3 @@ def load_inform():
     # make_history('source/UN/gdp_export.json', 'gdp_export')  # Доля экспорта в ВВП %
     # make_history('source/UN/unemployment.json', 'unemployment')  # Уровень безработицы %
     # make_history('source/UN/consumption.json', 'consumption')  # Расходы на конечное потребление (дол)
-    # make_history('source/UN/Индекс потребительских цен.json', 'cpi')  # Индекс потребительских цен (к 2010)

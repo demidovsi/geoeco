@@ -99,8 +99,7 @@ class TradingEconomics(trafaret_thread.PatternThread):
             return False
         url = "v1/select/{schema}/nsi_import?where=sh_name='{code_function}' and active".format(
             schema=config.SCHEMA, code_function=self.code_parser)
-        answer, is_ok, status = common.send_rest(
-            url, params={"columns": "id, name_rus, param_name, code, period, object_code"})
+        answer, is_ok, status = common.send_rest(url)
         result = 0
         index = 0
         if is_ok:

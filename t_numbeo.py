@@ -32,9 +32,7 @@ class Numbeo(trafaret_thread.PatternThread):
         result = 0
         url = "v1/select/{schema}/nsi_import?where=sh_name='{code_function}' and active&column_order=code".format(
             schema=config.SCHEMA, code_function=self.code_parser)
-        answer, is_ok, status = common.send_rest(
-            url, params={"columns": "id, name_rus, param_name, code, period, object_code, column_count, ind_name, "
-                                    "ind_value"})
+        answer, is_ok, status = common.send_rest(url)
         index = 0
         if is_ok:
             answer = json.loads(answer)
@@ -100,14 +98,14 @@ class Numbeo(trafaret_thread.PatternThread):
             if st_absent:
                 st += ';\n не найдены страны: "' + st_absent + '"'
             common.write_log_db(
-                'import', self.source, st, page=count_row, td=td,
+                'import', self.source + ' (' + data['period'] + ')', st, page=count_row, td=td,
                 law_id=str(index) + ' (всего=' + str(count) + ')',
                 file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
                 '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
                 token_admin=self.token)
         else:
             common.write_log_db(
-                'Error', self.source, 'Не обнаружено данных', td=td,
+                'Error', self.source + ' (' + data['period'] + ')', 'Не обнаружено данных', td=td,
                 law_id=str(index) + ' (всего=' + str(count) + ')',
                 file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
                 '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',

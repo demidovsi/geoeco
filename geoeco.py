@@ -20,6 +20,7 @@ import t_georgia
 import t_cyprus
 import t_courses
 import t_meteo
+import t_unece
 import countries
 import un
 import bigmac
@@ -78,6 +79,9 @@ if __name__ == '__main__':
         '; schema: ' + config.SCHEMA,
         file_name=common.get_computer_name()
     )
+
+    t_un = t_unece.Unece('ООН', 'un')
+    t_unece.obj.start()
 
     # t_statdata.obj = t_statdata.StatData('Крупные города', 'statdata')
     # t_statdata.obj.start()
