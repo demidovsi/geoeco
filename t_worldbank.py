@@ -33,7 +33,7 @@ class Wb(trafaret_thread.PatternThread):
         for indicator in self.list_start_metric:
             t0 = time.time()
             for data in answer:
-                if data['code'] == indicator:
+                if data['param_name'] == indicator:
                     count_row, st_absent = self.import_data(data, countries=countries)
                     if count_row and count_row != 0:
                         st = data['name_rus']
