@@ -171,6 +171,30 @@ class PatternThread(threading.Thread):
                 schema=config.SCHEMA, sh_name=self.code_parser)
             common.write_script_db(sql_query, token=self.token)
 
+    def decode_finish_one_indicator(self, data, count_row, st_absent, t0):
+        if count_row and count_row != 0:
+            st = data['name_rus']
+            if st_absent:
+                name_absent = common.get_name_object(data)
+                st += ';\n не найдены ' + name_absent + ': "' + st_absent + '"'
+            common.write_log_db(
+                'import', self.source + ' (по запросу)', st, page=count_row, td=time.time() - t0,
+                file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
+                '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
+                token_admin=self.token)
+
+    def load_indicators(self, active=None):
+        url = "v1/select/{schema}/nsi_import?where=sh_name='{code_function}'".format(
+            schema=config.SCHEMA, code_function=self.code_parser)
+        url = url + ' and active ' if active else url
+        answer, is_ok, status = common.send_rest(url)
+        if not is_ok:
+            common.write_log_db(
+                'error', self.source, str(answer) + '; ' + url,
+                file_name=common.get_computer_name() + '\n поток="' + self.code_parser, token_admin=self.token)
+            return
+        answer = json.loads(answer)
+        return answer
 
     def get_duration(self):
         return common.get_duration(time.mktime(time.gmtime()) - self.time_begin)

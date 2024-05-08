@@ -574,3 +574,12 @@ def is_number(s):
     if re.match("^\d+?\.\d+?$", s) is None:
         return s.isdigit()
     return True
+
+
+def get_name_object(data):
+    if data['object_code'] == 'countries':
+        return 'страны'
+    if data['object_code'] == 'cities':
+        return 'города'
+    if data['object_code'] == 'provincies':
+        return 'провинции (штаты)'

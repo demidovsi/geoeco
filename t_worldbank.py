@@ -24,38 +24,23 @@ class Wb(trafaret_thread.PatternThread):
         countries = common.load_countries(self.token)
         if countries is None:
             return
-        url = "v1/select/{schema}/nsi_import?where=sh_name='{code_function}'".format(
-            schema=config.SCHEMA, code_function=self.code_parser)
-        answer, is_ok, status = common.send_rest(url)
-        if not is_ok:
-            return
-        answer = json.loads(answer)
-        for indicator in self.list_start_metric:
-            t0 = time.time()
-            for data in answer:
-                if data['param_name'] == indicator:
-                    count_row, st_absent = self.import_data(data, countries=countries)
-                    if count_row and count_row != 0:
-                        st = data['name_rus']
-                        if st_absent:
-                            st += ';\n не найдены страны: "' + st_absent + '"'
-                        common.write_log_db(
-                            'import', self.source + ' (по запросу)', st, page=count_row, td=time.time() - t0,
-                            file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
-                                      '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
-                            token_admin=self.token)
+        answer = self.load_indicators(False)
+        if answer:
+            for indicator in self.list_start_metric:
+                t0 = time.time()
+                for data in answer:
+                    if data['param_name'] == indicator:
+                        count_row, st_absent = self.import_data(data, countries=countries)
+                        self.decode_finish_one_indicator(data, count_row, st_absent, t0)
 
     def load_list_indicators(self):
-        url = "v1/select/{schema}/nsi_import?where=sh_name='{code_function}' and active".format(
-            schema=config.SCHEMA, code_function=self.code_parser)
-        answer, is_ok, status = common.send_rest(url)
         result = 0
-        index = 0
-        if is_ok:
+        answer = self.load_indicators(True)
+        if answer:
+            index = 0
             answer = json.loads(answer)
             countries = common.load_countries(self.token)
             if countries is None:
-                print('Отсутствуют страны')
                 return False
             for data in answer:
                 index += 1
@@ -72,7 +57,7 @@ class Wb(trafaret_thread.PatternThread):
                         'import', self.source, st, page=count_row, td=time.time() - t0,
                         law_id=str(index) + ' (всего=' + str(len(answer)) + ')',
                         file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
-                                  '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
+                        '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
                         token_admin=self.token)
         return result != 0
 
