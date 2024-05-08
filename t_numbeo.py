@@ -162,7 +162,7 @@ class Numbeo(trafaret_thread.PatternThread):
     def make_years_countries(self, data, countries):
         # годовая информация по странам для одного параметра (за интервал годов с 2012-го)
         st_absent = ''
-        count_row = 0
+        list_countries = list()
         for year in range(2012, time.gmtime().tm_year + 1):
             url = data['code'].format(year=year)
             lws = self.load_html(url)
@@ -178,25 +178,25 @@ class Numbeo(trafaret_thread.PatternThread):
                         st_absent += name
                         continue  # эту строку пропускаем
                     if value and value != '-':
-                        count_row += 1
+                        if country_id not in list_countries:
+                            list_countries.append(country_id)
                         st_query += "select {schema}.pw_his('{param_name}', '{date}', '{country_id}', {value});".format(
                             date=date, country_id=country_id, value=value, schema=config.SCHEMA,
                             param_name=data['param_name'])
                 common.write_script_db(st_query, self.token)
-        return count_row, st_absent
+        return len(list_countries), st_absent
 
     def make_years_cities(self, data, countries):
         # годовая информация по странам для одного параметра (за интервал годов с 2012-го)
         cities = common.load_cities(self.token)
         if cities is None:
             return None, ''
-        count_row = 0
+        list_cities = list()
         for year in range(2012, time.gmtime().tm_year + 1):
             lws = self.load_html(data['code'].format(year=year))
             if lws:
                 date = '{year}-01-01'.format(year=year)
                 # print(date, len(lws))
-                st_sql = ''
                 need_reload = False
                 # проверим и запишем новые города
                 for i in range(0, len(lws), data['column_count']):
@@ -224,14 +224,16 @@ class Numbeo(trafaret_thread.PatternThread):
                                 need_reload = True
                 if need_reload:
                     cities = common.load_cities(self.token)  # прочитать новый список
+                st_sql = ''
                 for i in range(0, len(lws), data['column_count']):
                     name = lws[i + data['ind_name']].split(',')
                     name_city = name[0].strip()
                     value = lws[i + data['ind_value']]
                     city_id = common.get_city_id(name_city, cities)
                     if city_id and value and value != '-':
-                        count_row += 1
+                        if city_id not in list_cities:
+                            list_cities.append(city_id)
                         st_sql = get_st_sql_cities(st_sql, date, city_id, value, data['param_name'])
                 # записать исторические данные
                 common.write_script_db(st_sql, token=self.token)
-        return count_row, ''
+        return len(list_cities), ''
