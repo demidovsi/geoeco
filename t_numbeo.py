@@ -28,17 +28,39 @@ class Numbeo(trafaret_thread.PatternThread):
         super(Numbeo, self).work()
         return self.load_list_indicators()
 
+    def check_import_metric(self):
+        super(Numbeo, self).check_import_metric()
+        if len(self.list_start_metric) == 0:
+            return
+        countries = common.load_countries(self.token)
+        if countries is None:
+            return
+        answer = self.load_indicators(False)
+        if answer is None:
+            return
+        for indicator in self.list_start_metric:
+            for data in answer:  # цикл по индикаторам
+                t0 = time.time()
+                if data['param_name'] == indicator:  # индикатор заказан
+                    count_row = None
+                    st_absent = ''
+                    if '{year}' in data['code']:
+                        if data['object_code'] == 'countries':
+                            count_row, st_absent = self.make_years_countries(data, countries)
+                        else:
+                            count_row, st_absent = self.make_years_cities(data, countries)
+                    elif data['object_code'] == 'countries':
+                        count_row, st_absent = self.make_current_value(data['code'], data['param_name'], countries)
+                    if count_row:
+                        self.decode_finish_one_indicator(data, count_row, st_absent, t0)
+
     def load_list_indicators(self):
         result = 0
-        url = "v1/select/{schema}/nsi_import?where=sh_name='{code_function}' and active&column_order=code".format(
-            schema=config.SCHEMA, code_function=self.code_parser)
-        answer, is_ok, status = common.send_rest(url)
         index = 0
-        if is_ok:
-            answer = json.loads(answer)
+        answer = self.load_indicators(True)
+        if answer:
             countries = common.load_countries()
             if countries is None:
-                print('Отсутствуют страны')
                 return False
             for data in answer:
                 index += 1
