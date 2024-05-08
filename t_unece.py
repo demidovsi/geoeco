@@ -47,7 +47,7 @@ class Unece(trafaret_thread.PatternThread):
             years.append(heads[i].text)
         trs = lws.find_all('tbody')[0].find_all('tr')
         st_query = ''
-        count_countries = 0
+        list_country = list()
         for tr in trs:
             tds = tr.find_all('td')
             country_name = tds[0].text
@@ -60,12 +60,13 @@ class Unece(trafaret_thread.PatternThread):
                 value = tds[i].text
                 if common.is_number(value):
                     date = years[i - 1] + '-01-01'
-                    count_countries += 1
+                    if country_id not in list_country:
+                        list_country.append(country_id)
                     st_query += "select {schema}.pw_his('{param_name}', '{date}', '{country_id}', {value});\n". \
                         format(date=date, country_id=country_id, value=value, schema=config.SCHEMA,
                                param_name=data['param_name'])
         common.write_script_db(st_query, self.token)
-        return count_countries, st_absent
+        return len(list_country), st_absent
 
     def load_html(self, url):
         t = time.time()

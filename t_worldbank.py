@@ -83,7 +83,6 @@ class Wb(trafaret_thread.PatternThread):
             return None, ''
         st_query = ''
         st_absent = ''
-        count = 0
         list_country = list()
         for row in wb.data.fetch([data['code']], skipBlanks=True):  # all years
             if row['aggregate']:
@@ -96,7 +95,6 @@ class Wb(trafaret_thread.PatternThread):
                 st_query += "select {schema}.pw_his('{param_name}', '{date}-12-01', {country_id}, {value});\n". \
                     format(param_name=data['param_name'], date=date, country_id=country_id, value=row['value'],
                            schema=config.SCHEMA)
-                count += 1
             else:
                 if row['economy'] not in st_absent:
                     st_absent = st_absent + ', ' if st_absent else st_absent
