@@ -1,15 +1,12 @@
 import trafaret_thread
-import json
 import common
 import config
-import countries as c_countries
 import time
 import requests
 from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
 
 http_adapter = HTTPAdapter(max_retries=10)
-obj = None
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
                   "Chrome/114.0.0.0 Safari/537.36",
@@ -88,22 +85,34 @@ class TradingEconomics(trafaret_thread.PatternThread):
         common.write_script_db(st_query, self.token)
         return count_row, st_absent
 
-    def load_list_indicators(self):
-        t0 = time.time()
-        countries = common.load_countries(token=self.token)
-        common.write_log_db(
-            'import', self.source, 'Чтение списка стран', td=time.time() - t0, law_id=str(len(countries)),
-            file_name=common.get_computer_name() + '\n поток="' + self.code_parser, token_admin=self.token)
+    def check_import_metric(self):
+        super(TradingEconomics, self).check_import_metric()
+        if len(self.list_start_metric) == 0:
+            return
+        countries = common.load_countries(self.token)
         if countries is None:
-            print('Нет стран')
-            return False
-        url = "v1/select/{schema}/nsi_import?where=sh_name='{code_function}' and active".format(
-            schema=config.SCHEMA, code_function=self.code_parser)
-        answer, is_ok, status = common.send_rest(url)
+            return
+        answer = self.load_indicators(False)
+        if answer:
+            for indicator in self.list_start_metric:
+                t0 = time.time()
+                for data in answer:
+                    if data['object_code'] == 'countries' and data['param_name'] == indicator:
+                        lws = self.load_html(data['code'])
+                        if lws is None:
+                            continue
+                        count_row, st_absent = self.import_data(lws, data['param_name'], countries=countries)
+                        self.decode_finish_one_indicator(data, count_row, st_absent, t0)
+
+    def load_list_indicators(self):
         result = 0
         index = 0
-        if is_ok:
-            answer = json.loads(answer)
+        answer = self.load_indicators(True)
+        if answer:
+            countries = common.load_countries(token=self.token)
+            if countries is None:
+                print('Нет стран')
+                return
             for data in answer:
                 index += 1
                 if data['object_code'] != 'countries':

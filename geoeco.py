@@ -77,7 +77,7 @@ if __name__ == '__main__':
     # t_countries.Countries('Описание стран', 'countries').start()
     t_worldbank.Wb('Всемирный банк', 'wb').start()
     t_numbeo.Numbeo('Numbeo', 'numbeo').start()
-    # t_tradingeconomics.TradingEconomics('Tradingeconomics', 'trading').start()
+    t_tradingeconomics.TradingEconomics('Tradingeconomics', 'trading').start()
     # t_wikipedia.Wikipedia('Википедия', 'wikipedia').start()
     # t_indonesia.Indonesia('Индонезия', 'indonesia').start()
     # t_spain.Spain('Испания', 'spain').start()
