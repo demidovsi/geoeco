@@ -21,6 +21,7 @@ import t_cyprus
 import t_courses
 import t_meteo
 import t_unece
+import t_usa
 import countries
 import un
 import bigmac
@@ -85,6 +86,7 @@ if __name__ == '__main__':
     t_meteo.Meteo('Метео по городам', 'meteo').start()
     # t_cyprus.Cyprus('Кипр', 'cyprus').start()
     # t_georgia.Georgia('Грузия', 'georgia').start()
+    t_usa.Usa('США', 'usa').start()
 
     while True:
         time.sleep(5)

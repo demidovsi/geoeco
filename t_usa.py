@@ -48,24 +48,44 @@ class Usa(trafaret_thread.PatternThread):
                 file_name=common.get_computer_name(), token_admin=self.token)
 
     def load_list_indicators(self):
-        url = "v1/select/{schema}/nsi_import?where=sh_name='{code_function}' and active".format(
-            schema=config.SCHEMA, code_function=self.code_parser)
-        answer, is_ok, status = common.send_rest(url)
         result = 0
-        if is_ok:
-            answer = json.loads(answer)
+        t0 = time.time()
+        answer = self.load_indicators(True)
+        if answer:
             countries = common.load_from_db('countries', where="sh_name='United States'")
             if countries is None:
                 print('Отсутствуют США')
                 return False
             country_id = countries[0]['id']
             for data in answer:
-                count_row = 0
                 if data['object_code'] == 'provincies':
                     count_row = self.import_provinces(data, country_id)
-                if count_row and count_row != 0:
-                    result += count_row
+                    common.write_log_db(
+                        'import', self.source, 'Штаты США', page=count_row, td=time.time() - t0,
+                        file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
+                        '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
+                        token_admin=self.token)
+                    if count_row and count_row != 0:
+                        result += count_row
         return result != 0
+
+    def check_import_metric(self):
+        super(Usa, self).check_import_metric()
+        if len(self.list_start_metric) == 0:
+            return
+        countries = common.load_from_db('countries', where="sh_name='United States'")
+        if countries is None:
+            return
+        country_id = countries[0]['id']
+        answer = self.load_indicators(False)
+        if answer:
+            for indicator in self.list_start_metric:
+                t0 = time.time()
+                for data in answer:
+                    if data['param_name'] == indicator:
+                        if data['object_code'] == 'provincies':
+                            count_row = self.import_provinces(data, country_id)
+                            self.decode_finish_one_indicator(data, count_row, '', t0)
 
     def import_provinces(self, elem, country_id):
         """
@@ -88,16 +108,21 @@ class Usa(trafaret_thread.PatternThread):
         # обновить список провинций
         need_load = False
         provinces = common.load_provinces_db(country_id)
-        # for data in lws:
-        #     unit = data.find_all('td')
-        #     if unit[0].text.strip().isdigit():
-        #         if self.refresh_provinces(unit, country_id, provinces, year1, year2, year_area):
-        #             need_load = True
-        # if need_load:
-        #     provinces = common.load_provinces_db(country_id)
+        st_query = ''
+        for data in lws:
+            unit = data.find_all('td')
+            if unit[0].text.strip().isdigit():
+                up, st = self.refresh_provinces(unit, country_id, provinces, year1, year2, year_area)
+                if up:
+                    need_load = True
+                st_query += st
+        common.write_script_db(st_query, self.token)
+        if need_load:
+            provinces = common.load_provinces_db(country_id)
 
         # обновить список городов
         cities = common.load_from_db('cities', 'country={country}'.format(country=country_id))
+        st_query = ''
         for data in lws:
             unit = data.find_all('td')
             if unit[0].text.strip().isdigit():
@@ -106,7 +131,10 @@ class Usa(trafaret_thread.PatternThread):
                 name_city = get_name(unit[15].text)
                 self.refresh_cities(name_city, country_id, province_id, cities)
                 name_city = get_name(unit[14].text)
-                self.refresh_cities(name_city, country_id, province_id, cities, capital=True)
+                up, st = self.refresh_cities(name_city, country_id, province_id, cities, capital=True)
+                st_query += st
+        common.write_script_db(st_query, self.token)
+        return len(provinces)
 
     def refresh_cities(self, name, country_id, province_id, cities, capital=False):
         need_reload = False
@@ -142,8 +170,8 @@ class Usa(trafaret_thread.PatternThread):
         if capital:
             st_nsi += "update {schema}.nsi_provinces set capital={city_id} where id={id};select 1;\n".\
                 format(id=province_id, city_id=city_id, schema=config.SCHEMA)
-        common.write_script_db(st_nsi, self.token)
-        return need_reload
+        # common.write_script_db(st_nsi, self.token)
+        return need_reload, st_nsi
 
     def refresh_provinces(self, unit, country_id, provinces, year1, year2, year_area):
         need_reload = False
@@ -192,13 +220,13 @@ class Usa(trafaret_thread.PatternThread):
         st_query += "select {schema}.pw_his_provinces('{param_name}', '{date}', {id}, {value});\n". \
             format(date=str(year_area), id=province_id, value=area, schema=config.SCHEMA, param_name='area')
 
-        st_nsi = "update {schema}.nsi_provinces set population={value} where id={id};select 1;\n". \
+        st_nsi = "update {schema}.nsi_provinces set population={value} where id={id};\n". \
             format(id=province_id, value=pop2, schema=config.SCHEMA)
         st_nsi += "update {schema}.nsi_provinces set square={value} where id={id};select 1;\n". \
             format(id=province_id, value=area, schema=config.SCHEMA)
-        common.write_script_db(st_query, self.token)
-        common.write_script_db(st_nsi, self.token)
-        return need_reload
+        # common.write_script_db(st_query, self.token)
+        # common.write_script_db(st_nsi, self.token)
+        return need_reload, st_query + st_nsi
 
 
 Usa('США', 'usa').start()
