@@ -229,8 +229,8 @@ class Usa(trafaret_thread.PatternThread):
         return need_reload, st_query + st_nsi
 
 
-Usa('США', 'usa').start()
-while True:
-    time.sleep(5)
+# Usa('США', 'usa').start()
+# while True:
+#     time.sleep(5)
 
 
