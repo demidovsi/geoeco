@@ -92,7 +92,6 @@ class Unece(trafaret_thread.PatternThread):
         index = 0
         answer = self.load_indicators(True)
         if answer:
-            answer = json.loads(answer)
             countries = common.load_countries(self.token)
             if countries is None:
                 print('Отсутствуют страны')

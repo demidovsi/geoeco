@@ -38,7 +38,6 @@ class Wb(trafaret_thread.PatternThread):
         answer = self.load_indicators(True)
         if answer:
             index = 0
-            answer = json.loads(answer)
             countries = common.load_countries(self.token)
             if countries is None:
                 return False
