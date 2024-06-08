@@ -124,3 +124,8 @@ class Unece(trafaret_thread.PatternThread):
                 file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
                 '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
                 token_admin=self.token)
+
+
+# Unece('ООН', 'un').start()
+# while True:
+#     time.sleep(5)
