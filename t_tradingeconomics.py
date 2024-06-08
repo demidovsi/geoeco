@@ -4,6 +4,7 @@ import config
 import time
 import requests
 from bs4 import BeautifulSoup
+from deep_translator import GoogleTranslator
 from requests.adapters import HTTPAdapter
 
 http_adapter = HTTPAdapter(max_retries=10)
@@ -39,7 +40,8 @@ class TradingEconomics(trafaret_thread.PatternThread):
 
     def load_html(self, indicator):
         t = time.time()
-        url = config.url_trading + indicator
+        # url = config.url_trading + indicator
+        url = self.par['compliment_txt']['url'].format(indicator=indicator) + '?continent=world'
         session = requests.Session()
         session.mount(url, http_adapter)
         r = session.get(url, headers=headers, timeout=(100, 100))
@@ -134,3 +136,51 @@ class TradingEconomics(trafaret_thread.PatternThread):
                             '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
                         token_admin=self.token)
         return result != 0
+
+
+# TradingEconomics('trading', 'trading').start()
+# while True:
+#     time.sleep(5)
+def import_indicators():
+    def get_id(code):
+        for unit in indicators:
+            if unit['code'] == code:
+                return unit['id']
+
+    url = "https://ru.tradingeconomics.com/indicators"
+    session = requests.Session()
+    session.mount(url, http_adapter)
+    r = session.get(url, headers=headers, timeout=(100, 100))
+    try:
+        if r.ok:
+            indicators = common.load_from_db('import', "sh_name='trading'")
+            lws = BeautifulSoup(r.text, 'html.parser').find_all('li', class_='list-group-item')
+            values = list()
+            for data in lws:
+                st = str(data.contents).split('>')
+                code = st[0].split('href=')
+                if len(code) < 2 or 'country-list' not in code[1]:
+                    continue
+                code = code[1].replace('"', '').replace("'", '').strip().split('/')[2].split(' ')[0]
+                indicator_id = get_id(code)
+                if indicator_id is None:
+                    name_rus = st[1].split('<')[0]
+                    name = GoogleTranslator(source='ru', target='en').translate(name_rus)
+                    param_name = code.replace('-', '_')
+                    param = {"sh_name": "trading", "code": code, "name": name, "object_code": "countries",
+                             "name_rus": name_rus, "param_name": param_name}
+                    values.append(param)
+            if len(values) > 0:
+                common.write_objects_db('import', values)
+        else:
+            return
+    except Exception as err:
+        st = f"{err}\n" + url
+        print(st)
+
+
+import_indicators()
+
+# TradingEconomics('trading', 'trading').start()
+# while True:
+#     time.sleep(5)
