@@ -137,7 +137,7 @@ def calc_avr_day():
         return
     days = json.loads(days)
     for i in range(len(days)):
-        date = days[i]['0']
+        date = days[i]['date']
         url = "v1/select/{schema}/get_cities_day('{dt}')".format(schema=config.SCHEMA, dt=date)
         units, is_ok, status = common.send_rest(url)
         if not is_ok:
@@ -147,7 +147,7 @@ def calc_avr_day():
         # средние значения, которые нужно рассчитать
         sql_text = ''
         for unit in units:
-            city_id = unit['0']
+            city_id = unit['id']
             value = dict()  # для среднесуточных значений
             value['duration'] = 0
             for key in array_keys:

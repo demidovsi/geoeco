@@ -1,6 +1,5 @@
 import config
 import common
-import countries as c_countries
 import json
 
 
@@ -35,7 +34,7 @@ def load_bm():
     if is_ok:
         ans = json.loads(ans)
         for unit in ans:
-            list_code_euz.append(unit['0'])
+            list_code_euz.append(unit['code'])
     count = 0
     for unit in answer:
         if unit['iso_a3'] == 'EUZ':
