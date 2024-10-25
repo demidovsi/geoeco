@@ -131,7 +131,7 @@ class TradingEconomics(trafaret_thread.PatternThread):
                         st += ';\n не найдены страны: "' + st_absent + '"'
                     common.write_log_db(
                         'import', self.source, st, page=count_row, td=time.time() - t0,
-                        law_id=str(index) + ' (всего=' + str(len(answer)) + ')',
+                        law_id=str(index) + ' из ' + str(len(answer)),
                         file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
                             '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
                         token_admin=self.token)

@@ -113,14 +113,14 @@ class Unece(trafaret_thread.PatternThread):
                 st += ';\n не найдены страны: "' + st_absent + '"'
             common.write_log_db(
                 'import', self.source + ' (' + data['period'] + ')', st, page=count_row, td=td,
-                law_id=str(index) + ' (всего=' + str(count) + ')',
+                law_id=str(index) + ' из ' + str(count),
                 file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
                 '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
                 token_admin=self.token)
         else:
             common.write_log_db(
                 'Error', self.source + ' (' + data['period'] + ')', 'Не обнаружено данных', td=td,
-                law_id=str(index) + ' (всего=' + str(count) + ')',
+                law_id=str(index) + ' из ' + str(count),
                 file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
                 '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
                 token_admin=self.token)

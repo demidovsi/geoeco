@@ -1,7 +1,6 @@
 import trafaret_thread
 import common
 import config
-import json
 import time
 import wbgapi as wb
 
@@ -46,18 +45,25 @@ class Wb(trafaret_thread.PatternThread):
                 if data['object_code'] != 'countries':
                     continue
                 t0 = time.time()
-                count_row, st_absent = self.import_data(data, countries=countries)
-                if count_row and count_row != 0:
+                count_row, st_absent, is_ok = self.import_data(data, countries=countries)
+                if is_ok and count_row and count_row != 0:
                     result += count_row
                     st = data['name_rus']
                     if st_absent:
                         st += ';\n не найдены страны: "' + st_absent + '"'
                     common.write_log_db(
                         'import', self.source, st, page=count_row, td=time.time() - t0,
-                        law_id=str(index) + ' (всего=' + str(len(answer)) + ')',
+                        law_id=str(index) + ' из ' + str(len(answer)),
                         file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
                         '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
                         token_admin=self.token)
+                if not is_ok:
+                    common.write_log_db(
+                        'Exception', self.source, data['name_rus'] + '; ' + st_absent + "; сервер=" +
+                                                  common.get_computer_name(),
+                        td=time.time() - t0,
+                        file_name=self.st_filename + '\n поток="' + self.code_parser + '"',
+                        law_id=str(index) + ' из ' + str(len(answer)), token_admin=self.token)
         return result != 0
 
     def import_data(self, data, countries=None):
@@ -83,23 +89,27 @@ class Wb(trafaret_thread.PatternThread):
         st_query = ''
         st_absent = ''
         list_country = list()
-        for row in wb.data.fetch([data['code']], skipBlanks=True):  # all years
-            if row['aggregate']:
-                continue  # агрегированные данные пропускаем
-            country_id = common.get_country_id(None, countries, code=row['economy'], pr=False)
-            if country_id:
-                if country_id not in list_country:
-                    list_country.append(country_id)
-                date = row['time'][2:]
-                st_query += "select {schema}.pw_his('{param_name}', '{date}-12-01', {country_id}, {value});\n". \
-                    format(param_name=data['param_name'], date=date, country_id=country_id, value=row['value'],
-                           schema=config.SCHEMA)
-            else:
-                if row['economy'] not in st_absent:
-                    st_absent = st_absent + ', ' if st_absent else st_absent
-                    st_absent += row['economy']
-        common.write_script_db(st_query, token=self.token)
-        return len(list_country), st_absent
+        try:
+            for row in wb.data.fetch([data['code']], skipBlanks=True):  # all years
+                if row['aggregate']:
+                    continue  # агрегированные данные пропускаем
+                country_id = common.get_country_id(None, countries, code=row['economy'], pr=False)
+                if country_id:
+                    if country_id not in list_country:
+                        list_country.append(country_id)
+                    date = row['time'][2:]
+                    st_query += "select {schema}.pw_his('{param_name}', '{date}-12-01', {country_id}, {value});\n". \
+                        format(param_name=data['param_name'], date=date, country_id=country_id, value=row['value'],
+                               schema=config.SCHEMA)
+                else:
+                    if row['economy'] not in st_absent:
+                        st_absent = st_absent + ', ' if st_absent else st_absent
+                        st_absent += row['economy']
+            common.write_script_db(st_query, token=self.token)
+            return len(list_country), st_absent, True
+        except Exception as err:
+            return 0, f"{err}", False
+
 
 # Wb('Всемирный банк', 'wb').start()
 # while True:
