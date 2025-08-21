@@ -2,5 +2,8 @@ Requests==2.31.0
 deep_translator
 xlrd
 bs4
-owid-catalog
+wbgapi
+geopy
+geocoder
+#owid-catalog
 #aspose-cells

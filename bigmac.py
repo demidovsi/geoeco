@@ -30,7 +30,7 @@ def load_bm():
     list_code_euz = []
     st = "select b.code from {schema}.rel_countries_currencies_currencies a, eco.nsi_countries b where " \
          "a.currencies_id = 1 and b.id = a.countries_id;".format(schema=config.SCHEMA)
-    ans, is_ok, status = common.send_rest('v1/execute?need_answer=true&view=1', 'PUT', st, lang='en', token_user=token)
+    ans, is_ok, status = common.send_rest('v2/execute?need_answer=true&view=1', 'PUT', params={"script": st}, lang='en', token_user=token)
     if is_ok:
         ans = json.loads(ans)
         for unit in ans:

@@ -353,10 +353,10 @@ def write_script_db(st_query, token=None, write_error=True):
                 print('Error login')
                 return False
         answer, ok, status = send_rest(
-            'v1/execute', 'PUT', st_query, lang='en', token_user=token)
+            'v2/execute', 'PUT', params={"script": st_query}, lang='en', token_user=token)
         if not ok:
             if write_error:
-                write_log_db('ERROR', 'v1/execute', str(answer).split(';')[0] + ' ...')
+                write_log_db('ERROR', 'v2/execute', str(answer).split(';')[0] + ' ...')
             print(answer)
             return False
         else:

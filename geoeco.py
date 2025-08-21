@@ -35,7 +35,7 @@ from requests.utils import DEFAULT_CA_BUNDLE_PATH
 import geopy
 import geocoder
 
-version = '1.0.1 2024-03-02'
+version = 'version 1.2 2025-08-21'
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
@@ -66,9 +66,9 @@ if __name__ == '__main__':
 
     common.write_log_db(
         'START', 'WebParser', 'Старт сервиса подкачки статистической информации;\n' +
-        ' version: ' + version +
         '; host: ' + config.URL +
         '; schema: ' + config.SCHEMA,
+        law_id=version,
         file_name=common.get_computer_name()
     )
 

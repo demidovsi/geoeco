@@ -432,12 +432,12 @@ class Countries(trafaret_thread.PatternThread):
     def set_relation(self, code_rel, countries, relations, key, name_code='code'):
         # теперь удалить все привязки к code_rel
         t0 = time.time()
-        txt = 'v1/execute'
+        txt = 'v2/execute'
         # script = "delete from {schema}.rel_countries_{code_rel}_{code_rel}; select 'ok';".format(
         #     schema=config.SCHEMA, code_rel=code_rel)
         script = "truncate table {schema}.rel_countries_{code_rel}_{code_rel}; select 'ok';".format(
             schema=config.SCHEMA, code_rel=code_rel)
-        answer, is_ok, status_response = common.send_rest(txt, 'PUT', params=script, token_user=self.token)
+        answer, is_ok, status_response = common.send_rest(txt, 'PUT', params={"script": script}, token_user=self.token)
         td = time.time() - t0
         if not is_ok:
             common.write_log_db(
@@ -476,7 +476,7 @@ class Countries(trafaret_thread.PatternThread):
             #     schema=config.SCHEMA, code_rel=code_rel)
             t1 = time.time()
             # answer, is_ok, status_response = common.send_rest(txt, 'PUT', params=params, token_user=self.token)
-            answer, is_ok, status_response = common.send_rest('v1/execute', 'PUT', st_sql, token_user=self.token)
+            answer, is_ok, status_response = common.send_rest('v2/execute', 'PUT', params={"script": st_sql}, token_user=self.token)
             if not is_ok:
                 common.write_log_db(
                     'Error', self.source, 'Запись RELATION ' + code_rel + ': ' + str(answer), td=time.time() - t1,

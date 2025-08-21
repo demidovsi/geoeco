@@ -33,7 +33,7 @@ class Meteo(trafaret_thread.PatternThread):
                 headers = {
                     "Accept": "application/json"
                 }
-                mes = '?lat=' + str(lat) + '&lon=' + str(lon) + '&appid=' + api_id + '&units=metric'
+                mes = '?lat=' + str(lat) + '&lon=' + str(lon) + '&appid=' + api_id + '&units=metric&exclude=hourly,daily,minutely,alerts'
                 response = requests.request(directive, url + mes, headers=headers)
                 return response.text, response.ok
                 # print(url + mes)
@@ -61,7 +61,7 @@ class Meteo(trafaret_thread.PatternThread):
             dt = datetime.datetime.utcnow()
             st = common.time_for_sql(dt, False)
             sql_text = ''
-            # https: // api.openweathermap.org / data / 2.5 / onecall
+            # https: // api.openweathermap.org / data / 3.0 / onecall
             for data in answer:
                 txt, result = self.send_url(par['url'], par['api'], data['lon'], data['lat'])
                 if result:
@@ -112,7 +112,7 @@ def get_lat_lon_cities():
                     schema=config.SCHEMA, lat=location['lat'], lon=location['lng'], id=city['id'])
                 if count >= 100:
                     common.write_script_db(sql_text)
-                    sql_text =''
+                    sql_text = ''
                     count = 0
                     print('Записано', count_row, 'из', len(answer))
         common.write_script_db(sql_text)
