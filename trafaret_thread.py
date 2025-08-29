@@ -9,7 +9,7 @@ import config
 
 
 def get_value_config_param(key, par, default=1):
-    if key in par and par[key]:
+    if key in par and par[key] is not None:
         return par[key]
     return default
 

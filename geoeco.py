@@ -35,7 +35,7 @@ from requests.utils import DEFAULT_CA_BUNDLE_PATH
 import geopy
 import geocoder
 
-version = 'version 1.2 2025-08-21'
+version = 'version 1.3 2025-08-29'
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
