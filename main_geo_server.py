@@ -1,5 +1,45 @@
-# https://pypi.org/project/wbgapi/  описание библиотеки wbgari
-# Сервисы по закачке данных в базе ECO (гео-экономика)
+"""
+geo_server — сервис подкачки статистической информации в БД ECO (гео-экономика).
+
+Назначение
+    Периодически собирает экономические, демографические и справочные данные по странам,
+    провинциям (штатам) и городам из внешних источников и записывает их в PostgreSQL
+    (схема config.SCHEMA, по умолчанию eco). Работа с БД идёт только через RestAPI
+    проекта RESTproxy (config.URL): чтение — v1/select, запись — v2/execute (SQL-функции
+    pw_his*, pw_his_cities, pw_his_provinces), справочники — v1/objects, лог — pw_logs.
+
+Устройство
+    Каждый источник — отдельный поток-наследник trafaret_thread.PatternThread. Поток раз в
+    минуту перечитывает свои параметры из таблицы nsi_parser_functions (active, period,
+    at_date_time, compliment / compliment_txt) и, когда подходит время, выполняет work():
+        period > 0 — интервал в сутках, period < 0 — интервал в минутах;
+        active != 1 — поток спит; at_date_time — время последнего успешного запуска.
+    Список загружаемых индикаторов берётся из nsi_import (sh_name = код потока).
+    Внеочередная загрузка отдельного индикатора — запись в list_start_metric.
+    Ход работы (старт, импорт, ошибки, тайм-ауты) пишется в лог БД через common.write_log_db.
+
+Потоки (код потока в nsi_parser_functions)
+    un          — t_unece: таблицы ЕЭК ООН (w3.unece.org) по странам
+    wb          — t_worldbank: индикаторы Всемирного банка (библиотека wbgapi)
+    numbeo      — t_numbeo: стоимость жизни по странам и городам (numbeo.com) — отключён
+    trading     — t_tradingeconomics: показатели стран с tradingeconomics.com,
+                  при первом запуске пополняет список индикаторов в nsi_import
+    clear_logs  — t_clear_logs: удаление записей лога старше compliment дней
+    courses     — t_courses: курсы валют к USD за вчерашний день (apilayer)
+    meteo       — t_meteo: текущая погода по городам (OpenWeatherMap) и расчёт
+                  среднесуточных значений в avr_cities_meteo_day
+    usa         — t_usa: население и площадь штатов США, справочник штатов и столиц (Википедия)
+    Отключены: statdata, countries, wikipedia, indonesia, spain, cyprus, georgia.
+
+Запуск и деплой
+    python main_geo_server.py — настройки и секреты читаются из .env (шаблон .env.example).
+    Остановка по SIGTERM/Ctrl+C с записью shutdown в лог.
+    При push в master GitHub Actions собирает Docker-образ ghcr.io/demidovsi/geoeco и
+    перезапускает контейнер geoeco на 159.223.0.234 (секреты — /opt/geoeco/.env).
+
+Источники
+    https://pypi.org/project/wbgapi/  описание библиотеки wbgapi
+"""
 # https://w3.unece.org/PXWeb/ru/TableDomains/
 # https://www.numbeo.com/cost-of-living/prices_by_country.jsp
 # https://restcountries.com/v3.1/all
@@ -21,7 +61,7 @@ import t_usa
 # Отключённые потоки (при включении добавить соответствующий import):
 # t_statdata, t_countries, t_wikipedia, t_indonesia, t_spain, t_cyprus, t_georgia
 
-version = 'version 1.4 2026-10-13'
+version = 'version 1.5 2026-10-13'
 
 stop_event = threading.Event()
 
@@ -55,7 +95,9 @@ if __name__ == '__main__':
         # t_statdata.StatData('Крупные города', 'statdata').start()
         # t_countries.Countries('Описание стран', 'countries').start()
         t_worldbank.Wb('Всемирный банк', 'wb').start()
-        t_numbeo.Numbeo('Numbeo', 'numbeo').start()
+
+        # t_numbeo.Numbeo('Numbeo', 'numbeo').start()  # кончилась подписка
+
         t_tradingeconomics.TradingEconomics('Tradingeconomics', 'trading').start()
         # t_wikipedia.Wikipedia('Википедия', 'wikipedia').start()
         # t_indonesia.Indonesia('Индонезия', 'indonesia').start()

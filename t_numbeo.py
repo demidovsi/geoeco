@@ -82,10 +82,17 @@ class Numbeo(trafaret_thread.PatternThread):
                 elif data['object_code'] == 'countries':
                     count_row, st_absent, max_year = self.make_current_value(data['code'], data['param_name'], countries)
 
+                if self._rate_limited and not count_row:
+                    break  # RateLimit уже записан в лог — ошибку «Не обнаружено данных» не фиксируем
                 # записать результат разбора импорта по одному индикатору
                 self.finish(count_row, st_absent, data, len(answer), index, time.time() - t0, max_year)
                 if count_row:
                     result += count_row
+        if self._rate_limited:
+            # такт завершён ограничением сайта, а не ошибкой: следующая попытка — по расписанию (period),
+            # а не повтор через минуту, который снова упрётся в лимит
+            self.finish_text = 'Такт прерван: сайт ограничил доступ (RateLimit)'
+            return True
         return result != 0
 
     def make_current_value(self, url, param_name, countries):
