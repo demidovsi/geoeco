@@ -7,10 +7,12 @@ import time
 import datetime
 import socket
 import re
+from urllib.parse import quote
 
 app_lang = 'ru'
 rights = ''
 SRC = 'geo_server'
+LOG_MSG_MAX = 2000  # длинные сообщения (HTML-страницы) не влезают в URL запроса к RestAPI
 # (connect, read) таймауты HTTP-запросов: без них поток может зависнуть навсегда
 REST_TIMEOUT = (15, 600)
 URL_TIMEOUT = (15, 120)
@@ -489,12 +491,13 @@ def write_log_db(level, src, msg, page=None, file_name='', law_id='', td=None, w
         td = 'NULL' if td is None else float("%.1f" % td)
         st = "'{level}', '{source}', '{comment}', {page}, '{law_id}', '{file_name}', {td}".format(
                 level=level, source=src,
-                comment=translate_to_base(msg.replace("'", '"')),
+                comment=translate_to_base(msg[:LOG_MSG_MAX].replace("'", '"')),
                 page=page, law_id=law_id,
                 file_name=translate_to_base(file_name), td=td
               )
         answer, is_ok, status = send_rest(
-            'v1/function/{schema}/pw_logs?text={text}'.format(schema=config.SCHEMA, text=st), 'POST',
+            # quote: символы # ? & % + в тексте иначе обрезают/портят query-параметр
+            'v1/function/{schema}/pw_logs?text={text}'.format(schema=config.SCHEMA, text=quote(st, safe='')), 'POST',
             token_user=token)
         if not is_ok:
             print(time.ctime(), 'ERROR', 'write_log_db', str(answer), flush=True)

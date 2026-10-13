@@ -10,6 +10,8 @@ from deep_translator import GoogleTranslator
 
 http_adapter = HTTPAdapter(max_retries=10)
 obj = None
+# 503 numbeo отдаёт при блокировке запросов (как и 429) — дальнейшие запросы в этом такте бессмысленны
+RATE_LIMIT_CODES = (429, 503)
 
 
 def get_st_sql_cities(st_sql, date, city_id, value, param_name):
@@ -96,8 +98,8 @@ class Numbeo(trafaret_thread.PatternThread):
             common.write_log_db('💥Exception', SRC, f"{err}\n{url}", td=time.time() - t,
                                 law_id=self.code_parser + '\n' + self.source)
             return None, '', ''
-        if r.status_code == 429:
-            common.write_log_db('⚠️RateLimit', SRC, 'Rate limit exceeded\n' + r.text[:300],
+        if r.status_code in RATE_LIMIT_CODES:
+            common.write_log_db('⚠️RateLimit', SRC, f'HTTP {r.status_code}: сайт ограничил доступ, такт прерван\n{url}',
                                 td=time.time() - t, law_id=self.code_parser + '\n' + self.source)
             self._rate_limited = True
             return None, '', ''
@@ -155,8 +157,8 @@ class Numbeo(trafaret_thread.PatternThread):
                                 law_id=self.code_parser + '\n' + self.source)
             return None
         try:
-            if r.status_code == 429:
-                common.write_log_db('⚠️RateLimit', SRC, 'Rate limit exceeded\n' + r.text[:300],
+            if r.status_code in RATE_LIMIT_CODES:
+                common.write_log_db('⚠️RateLimit', SRC, f'HTTP {r.status_code}: сайт ограничил доступ, такт прерван\n{url}',
                                     td=time.time() - t, law_id=self.code_parser + '\n' + self.source)
                 self._rate_limited = True
                 return False
@@ -172,7 +174,7 @@ class Numbeo(trafaret_thread.PatternThread):
                 return lws
             else:
                 common.write_log_db(
-                    '❌Error', SRC, 'load_html\n' + str(r.status_code) + '; ' + r.text, td=time.time() - t,
+                    '❌Error', SRC, 'load_html\n' + str(r.status_code) + '; ' + r.text[:300] + '\n' + url, td=time.time() - t,
                     law_id=self.code_parser + '\n' + self.source)
         except Exception as err:
             common.write_log_db('💥Exception', SRC, f"{err}\n{url}", td=time.time() - t,
