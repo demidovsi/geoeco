@@ -59,13 +59,15 @@ class Usa(trafaret_thread.PatternThread):
             country_id = countries[0]['id']
             for data in answer:
                 if data['object_code'] == 'provincies':
-                    count_row = self.import_provinces(data, country_id)
+                    count_row, new_rows = self.import_provinces(data, country_id)
                     common.write_log_db(
-                        '✔️import', SRC, 'Штаты США' + '\nparam_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
+                        '✔️import', SRC, 'Штаты США' + '\nparam_name="' + data['param_name'] + '; ' + data['object_code'] + '"' +
+                        common.st_new_rows(new_rows),
                         page=count_row, td=time.time() - t0,
                         law_id=self.code_parser + '\n' + self.source)
                     if count_row and count_row != 0:
                         result += count_row
+                        self.add_new_rows(new_rows)
         return result != 0
 
     def check_import_metric(self):
@@ -83,8 +85,8 @@ class Usa(trafaret_thread.PatternThread):
                 for data in answer:
                     if data['param_name'] == indicator:
                         if data['object_code'] == 'provincies':
-                            count_row = self.import_provinces(data, country_id)
-                            self.decode_finish_one_indicator(data, count_row, '', t0)
+                            count_row, new_rows = self.import_provinces(data, country_id)
+                            self.decode_finish_one_indicator(data, count_row, '', t0, new_rows)
 
     def import_provinces(self, elem, country_id):
         """
@@ -98,7 +100,7 @@ class Usa(trafaret_thread.PatternThread):
             lws = BeautifulSoup(lws, 'html.parser').find_all('table')[0]. \
                 find_all('tbody')[0].find_all('tr')
         if not lws:
-            return False
+            return False, None
         lws_0 = lws[0]
         year1 = get_date(lws_0.find_all('th')[6].text)
         year2 = get_date(lws_0.find_all('th')[7].text)
@@ -108,7 +110,7 @@ class Usa(trafaret_thread.PatternThread):
         need_load = False
         provinces = common.load_provinces_db(country_id)
         if provinces is None:
-            return False
+            return False, None
         st_query = ''
         for data in lws:
             try:
@@ -120,7 +122,7 @@ class Usa(trafaret_thread.PatternThread):
                     st_query += st
             except Exception as err:
                 print(f'{err}')
-        common.write_script_db(st_query, self.token)
+        _, new_rows = common.write_his_db(st_query, ['his_provinces_pops', 'his_provinces_area'], self.token)
         if need_load:
             provinces = common.load_provinces_db(country_id) or provinces
 
@@ -141,7 +143,7 @@ class Usa(trafaret_thread.PatternThread):
             except Exception as err:
                 print(f'{err}')
         common.write_script_db(st_query, self.token)
-        return len(provinces)
+        return len(provinces), new_rows
 
     def refresh_cities(self, name, country_id, province_id, cities, capital=False):
         need_reload = False

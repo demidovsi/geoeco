@@ -80,6 +80,7 @@ class PatternThread(threading.Thread):
         self.st_filename = ''
         self.st_law_id = ''
         self.list_start_metric = list()
+        self.new_total = None  # новых значений за такт работы
         self.daemon = True
         self.source = source
         self.code_parser = code_parser
@@ -175,7 +176,12 @@ class PatternThread(threading.Thread):
                 schema=config.SCHEMA, sh_name=self.code_parser)
             common.write_script_db(sql_query, token=self.token)
 
-    def decode_finish_one_indicator(self, data, count_row, st_absent, t0):
+    def add_new_rows(self, new_rows):
+        """Накопить количество новых значений за такт (для итоговой записи 🕒 sleep)."""
+        if new_rows is not None:
+            self.new_total = (self.new_total or 0) + new_rows
+
+    def decode_finish_one_indicator(self, data, count_row, st_absent, t0, new_rows=None):
         if count_row and count_row != 0:
             st = data['name_rus']
             if st_absent:
@@ -183,7 +189,8 @@ class PatternThread(threading.Thread):
                 st += ';\n не найдены ' + name_absent + ': "' + st_absent + '"'
             common.write_log_db(
                 '➕import', SRC, '(по запросу)\n' + st +
-                '\nparam_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
+                '\nparam_name="' + data['param_name'] + '; ' + data['object_code'] + '"' +
+                common.st_new_rows(new_rows),
                 page=count_row, td=time.time() - t0,
                 law_id=self.code_parser + '\n' + self.source)
 
@@ -235,6 +242,7 @@ class PatternThread(threading.Thread):
                 if time.time() >= self.next_time:  # подошло время работать
                     self.first_cycle = False
                     self.time_start = time.time()
+                    self.new_total = None  # потоки, считающие новые значения, заполняют через add_new_rows
                     last_time = self.next_time
                     sleep = get_value_config_param('active', self.par) != 1
                     if sleep:
@@ -251,6 +259,8 @@ class PatternThread(threading.Thread):
                         self.from_time = self.next_time
                         self.next_time = self.time_start + n
                         st = 'Тайм-аут ' + cd.get_duration(n) + ' до ' + time.asctime(time.gmtime(self.next_time))
+                        if self.new_total is not None:
+                            self.finish_text += '\nНовых значений за такт: ' + str(self.new_total)
                         cd.write_log_db('🕒 sleep', SRC, st + '.\n' + self.finish_text,
                                         td=time.time() - self.time_start,
                                         law_id=self.code_parser + '\n' + self.source)

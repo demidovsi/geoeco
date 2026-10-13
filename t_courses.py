@@ -54,8 +54,10 @@ class Courses(trafaret_thread.PatternThread):
                             date=st_dt, currency_id=currency_id, value=1 / value, schema=config.SCHEMA
                         )
                 self.finish_text = 'Загружено ' + str(count_row) + ' курсов валют'
-                if not common.write_script_db(st_query, token=self.token):
+                is_ok, new_rows = common.write_his_db(st_query, 'his_currencies_course', token=self.token)
+                if not is_ok:
                     count_row = 0
+                self.add_new_rows(new_rows)
             else:
                 common.write_log_db('❌ERROR', SRC, 'load_courses\n' + str(status), law_id=self.code_parser + '\n' + self.source)
         else:

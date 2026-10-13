@@ -30,8 +30,8 @@ class Wb(trafaret_thread.PatternThread):
                 t0 = time.time()
                 for data in answer:
                     if data['param_name'] == indicator:
-                        count_row, st_absent, max_year, _ = self.import_data(data, countries=countries)
-                        self.decode_finish_one_indicator(data, count_row, st_absent, t0)
+                        count_row, st_absent, max_year, _, new_rows = self.import_data(data, countries=countries)
+                        self.decode_finish_one_indicator(data, count_row, st_absent, t0, new_rows)
 
     def load_list_indicators(self):
         result = 0
@@ -46,16 +46,17 @@ class Wb(trafaret_thread.PatternThread):
                 if data['object_code'] != 'countries':
                     continue
                 t0 = time.time()
-                count_row, st_absent, max_year, is_ok = self.import_data(data, countries=countries)
+                count_row, st_absent, max_year, is_ok, new_rows = self.import_data(data, countries=countries)
                 own = f"\n{index}/{len(answer)}"
                 if is_ok and count_row and count_row != 0:
                     result += count_row
+                    self.add_new_rows(new_rows)
                     st = data['name_rus']
                     if st_absent:
                         st += ';\n не найдены страны: "' + st_absent + '"'
                     common.write_log_db(
                         '✔️import', SRC, st + '\nparam_name="' + data['param_name'] + '; ' + data['object_code'] +
-                        f'\nmax_year={max_year}',
+                        f'\nmax_year={max_year}' + common.st_new_rows(new_rows),
                         page=count_row, td=time.time() - t0,
                         law_id=self.code_parser + '\n' + self.source + own)
                 if not is_ok:
@@ -76,15 +77,15 @@ class Wb(trafaret_thread.PatternThread):
         """
         if data['code'] is None:
             print('Не задан индикатор параметра')
-            return None, '', '', False
+            return None, '', '', False, None
         if data['param_name'] is None:
             print('Не задано имя параметра для', data['code'])
-            return None, '', '', False
+            return None, '', '', False, None
         if countries is None:
             countries = common.load_countries(self.token)
         if countries is None:
             print('Отсутствуют страны')
-            return None, '', '', False
+            return None, '', '', False, None
         st_query = ''
         st_absent = ''
         list_country = list()
@@ -109,15 +110,15 @@ class Wb(trafaret_thread.PatternThread):
                         if row['economy'] not in st_absent:
                             st_absent = st_absent + ', ' if st_absent else st_absent
                             st_absent += row['economy']
-                common.write_script_db(st_query, token=self.token)
-                return len(list_country), st_absent, max_year, True
+                _, new_rows = common.write_his_db(st_query, 'his_countries_' + data['param_name'], token=self.token)
+                return len(list_country), st_absent, max_year, True, new_rows
             except Exception as err:
                 err_msg = f"{err}"
                 if 'not found' in err_msg.lower() or 'not valid' in err_msg.lower() or 'json decod' in err_msg.lower():
                     common.write_log_db('⚠️Warning', SRC, f"Данные недоступны: {err_msg}\n" + data['name_rus']+
                                         '\nparam_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
                                         law_id=self.code_parser + '\n' + self.source, token_admin=self.token)
-                    return 0, err_msg, '', True
+                    return 0, err_msg, '', True, None
                 common.write_log_db('💥Exception', SRC, f"attempt {attempt + 1}/3: {err_msg}\n" + data['name_rus']+
                                     '\nparam_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
                                     law_id=self.code_parser + '\n' + self.source, token_admin=self.token)
@@ -126,7 +127,7 @@ class Wb(trafaret_thread.PatternThread):
                     st_query = ''
                     list_country = []
                     max_year = ''
-        return 0, err_msg, '', False
+        return 0, err_msg, '', False, None
 
 
 if __name__ == '__main__':

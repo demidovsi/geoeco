@@ -81,6 +81,7 @@ class Meteo(trafaret_thread.PatternThread):
 
             common.write_script_db(sql_text, token=self.token)
             self.finish_text = 'Загружено {count} записей по погоде'.format(count=count_row)
+            self.add_new_rows(count_row)  # замеры погоды всегда вставляются новыми строками
         else:
             common.write_log_db('❌ERROR', SRC, par['url'], law_id=self.code_parser + '\n' + self.source)
         return count_row > 0

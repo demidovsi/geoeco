@@ -94,8 +94,8 @@ class TradingEconomics(trafaret_thread.PatternThread):
                 if name_country not in st_absent:
                     st_absent = st_absent + ', ' if st_absent else st_absent
                     st_absent = st_absent + name_country
-        common.write_script_db(st_query, self.token)
-        return count_row, st_absent, max_year
+        _, new_rows = common.write_his_db(st_query, 'his_countries_' + param_name, self.token)
+        return count_row, st_absent, max_year, new_rows
 
     def check_import_metric(self):
         super(TradingEconomics, self).check_import_metric()
@@ -113,8 +113,8 @@ class TradingEconomics(trafaret_thread.PatternThread):
                         lws = self.load_html(data['code'])
                         if lws is None:
                             continue
-                        count_row, st_absent, _ = self.import_data(lws, data['param_name'], countries=countries)
-                        self.decode_finish_one_indicator(data, count_row, st_absent, t0)
+                        count_row, st_absent, _, new_rows = self.import_data(lws, data['param_name'], countries=countries)
+                        self.decode_finish_one_indicator(data, count_row, st_absent, t0, new_rows)
 
     def load_list_indicators(self):
         result = 0
@@ -133,15 +133,16 @@ class TradingEconomics(trafaret_thread.PatternThread):
                 lws = self.load_html(data['code'])
                 if lws is None:
                     continue
-                count_row, st_absent, max_year = self.import_data(lws, data['param_name'], countries=countries)
+                count_row, st_absent, max_year, new_rows = self.import_data(lws, data['param_name'], countries=countries)
                 if count_row and count_row != 0:
                     result += count_row
+                    self.add_new_rows(new_rows)
                     st = data['name_rus']
                     if st_absent:
                         st += ';\n не найдены страны: "' + st_absent + '"'
                     common.write_log_db(
                         '✔️import', SRC, st + '\n' + 'param_name="' + data['param_name'] + '; ' + data['object_code'] +
-                        f'"\nmax_year={max_year}',
+                        f'"\nmax_year={max_year}' + common.st_new_rows(new_rows),
                         page=count_row, td=time.time() - t0,
                         law_id=self.code_parser + '\n' + self.source + f'\n{index}/{len(answer)}')
         return result != 0

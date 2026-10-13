@@ -370,6 +370,45 @@ def write_script_db(st_query, token=None, write_error=True):
             return True
 
 
+def count_rows(table, token=None):
+    """Количество строк в таблице {schema}.{table}; None при ошибке."""
+    answer, ok, status = send_rest(
+        'v2/execute', 'PUT', params={"script": "select count(*) as cnt from {schema}.{table}".format(
+            schema=config.SCHEMA, table=table)}, lang='en', token_user=token)
+    if not ok:
+        return None
+    try:
+        return json.loads(answer)[0]['cnt']
+    except (ValueError, LookupError, TypeError):
+        return None
+
+
+def write_his_db(st_query, tables, token=None):
+    """
+    write_script_db с подсчётом вновь добавленных строк в таблицах истории.
+    Функции pw_his* сами решают insert/update, поэтому новые значения = прирост строк таблицы.
+    :param tables: имя таблицы истории без схемы (his_countries_<param> и т.п.) или список имён
+    :return: (is_ok, new_rows) — new_rows=None, если посчитать не удалось
+    """
+    if not st_query:
+        return True, 0
+    if isinstance(tables, str):
+        tables = [tables]
+    before = [count_rows(table, token) for table in tables]
+    is_ok = write_script_db(st_query, token=token)
+    if None in before:
+        return is_ok, None
+    after = [count_rows(table, token) for table in tables]
+    if None in after:
+        return is_ok, None
+    return is_ok, sum(after) - sum(before)
+
+
+def st_new_rows(new_rows):
+    """Текст для лога о количестве новых значений ('' если неизвестно)."""
+    return '' if new_rows is None else '\nновых значений: ' + str(new_rows)
+
+
 def write_objects_db(object_code, values, token=None):
     # возвращается None если все хорошо, иначе текст ошибки
     if token is None:
