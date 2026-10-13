@@ -651,14 +651,14 @@ def time_for_sql(dt, convert=True) -> str:
 
 def utc_local(utc: datetime) -> datetime:
     epoch = time.mktime(utc.timetuple())
-    offset = datetime.datetime.fromtimestamp(epoch) - datetime.datetime.utcfromtimestamp(epoch)
+    offset = datetime.datetime.fromtimestamp(epoch) - datetime.datetime.fromtimestamp(epoch, datetime.timezone.utc).replace(tzinfo=None)
     return utc + offset
 
 
 def local_utc(local: datetime) -> datetime:
     """  Перевод local: datetime из локального времени в UTC: datetime """
     epoch = time.mktime(local.timetuple())
-    offset = datetime.datetime.fromtimestamp(epoch) - datetime.datetime.utcfromtimestamp(epoch)
+    offset = datetime.datetime.fromtimestamp(epoch) - datetime.datetime.fromtimestamp(epoch, datetime.timezone.utc).replace(tzinfo=None)
     return local - offset
 
 

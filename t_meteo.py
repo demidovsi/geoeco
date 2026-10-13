@@ -59,7 +59,7 @@ class Meteo(trafaret_thread.PatternThread):
         answer, is_ok, status = common.send_rest(url)
         if is_ok:
             answer = json.loads(answer)
-            dt = datetime.datetime.utcnow()
+            dt = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             st = common.time_for_sql(dt, False)
             sql_text = ''
             # https: // api.openweathermap.org / data / 3.0 / onecall
