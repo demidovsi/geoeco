@@ -1,4 +1,5 @@
 Requests==2.31.0
+python-dotenv
 deep_translator
 xlrd
 beautifulsoup4

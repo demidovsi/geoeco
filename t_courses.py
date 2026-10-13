@@ -8,7 +8,7 @@ import requests
 from requests.adapters import HTTPAdapter
 
 http_adapter = HTTPAdapter(max_retries=10)
-api_key = 'DFtDCCAiCZNZIEtAj1aa5VwJzIE8W8Ep'
+api_key = config.apilayer_key
 obj = None
 
 

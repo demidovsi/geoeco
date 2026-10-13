@@ -1,2 +1,3 @@
 #
-api_key = 'f2514c62e37de924200a69b5b1f944 dcfe0d2e03'
+import config
+api_key = config.us_census_key

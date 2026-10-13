@@ -9,7 +9,7 @@ import common
 import config
 
 http_adapter = HTTPAdapter(max_retries=10)
-api_key = 'DFtDCCAiCZNZIEtAj1aa5VwJzIE8W8Ep'
+api_key = config.apilayer_key
 
 
 def load_courses(st_date):

@@ -1,6 +1,7 @@
 # CI/CD geo_server: проверка → сборка Docker-образа в ghcr.io → запуск контейнера на сервере.
 #
 # Секреты репозитория: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY.
+# Секреты приложения лежат на сервере в /opt/geoeco/.env (шаблон — .env.example), в образ не попадают.
 # На сервере docker уже залогинен в ghcr.io (используется и другими контейнерами),
 # поэтому здесь логин не выполняется, чтобы не перезаписать постоянные учётные данные.
 name: CI/CD geo_server
@@ -20,6 +21,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: demidovsi/geoeco
   CONTAINER: geoeco
+  ENV_FILE: /opt/geoeco/.env
 
 jobs:
   check:
@@ -42,6 +44,8 @@ jobs:
           ! grep -E "undefined name|syntax error|invalid syntax" pyflakes.log
 
       - name: Import check
+        env:
+          ENCODED_PASSWORD: ci-dummy
         run: python -c "import main_geo_server"
 
   build-and-push:
@@ -83,6 +87,8 @@ jobs:
             set -e
             IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
             NAME=${{ env.CONTAINER }}
+            ENV_FILE=${{ env.ENV_FILE }}
+            [ -f "$ENV_FILE" ] || { echo "ERROR: нет $ENV_FILE с секретами"; exit 1; }
 
             # Pull нового образа — при ошибке работающий контейнер не трогаем
             docker pull "$IMAGE" || { echo "ERROR: docker pull failed, keeping current container"; exit 1; }
@@ -95,6 +101,7 @@ jobs:
                 --restart unless-stopped \
                 --network host \
                 --stop-timeout 30 \
+                --env-file "$ENV_FILE" \
                 --log-opt max-size=50m --log-opt max-file=3 \
                 "$1"
             }
