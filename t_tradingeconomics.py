@@ -1,5 +1,6 @@
 import trafaret_thread
 import common
+from common import SRC
 import config
 import time
 import requests
@@ -33,36 +34,42 @@ class TradingEconomics(trafaret_thread.PatternThread):
 
     def __init__(self, source, code_function):
         super(TradingEconomics, self).__init__(source, code_function)
+        self.indicators_imported = False
 
     def work(self):
         super(TradingEconomics, self).work()
+        if not self.indicators_imported:
+            # пополнение списка индикаторов один раз за запуск (раньше выполнялось при import модуля)
+            self.indicators_imported = True
+            import_indicators()
         return self.load_list_indicators()
 
     def load_html(self, indicator):
         t = time.time()
         # url = config.url_trading + indicator
         url = self.par['compliment_txt']['url'].format(indicator=indicator) + '?continent=world'
-        session = requests.Session()
-        session.mount(url, http_adapter)
-        r = session.get(url, headers=headers, timeout=(100, 100))
         try:
+            session = requests.Session()
+            session.mount(url, http_adapter)
+            r = session.get(url, headers=headers, timeout=(100, 100))
             if r.ok:
                 lws = BeautifulSoup(r.text, 'html.parser').find_all('table')[0].find_all('tr')[1:]
                 return lws
             else:
                 common.write_log_db(
-                    'Error', self.source, str(r.status_code) + '; ' + r.text, td=time.time() - t,
-                    file_name=common.get_computer_name(), token_admin=self.token)
+                    '❌Error', SRC, 'load_html\n' + str(r.status_code) + '; ' + r.text, td=time.time() - t,
+                    law_id=self.code_parser + '\n' + self.source)
         except Exception as err:
             st = f"{err}\n" + url
             common.write_log_db(
-                'Exception', self.source, st, td=time.time() - t,
-                file_name=common.get_computer_name(), token_admin=self.token)
+                '💥Exception', SRC, st, td=time.time() - t,
+                law_id=self.code_parser + '\n' + self.source)
 
     def import_data(self, lws, param_name, countries):
         st_query = ''
         st_absent = ''
         count_row = 0
+        max_year = ''
         for data in lws:
             values = data.find_all('td')
             name_country = values[0].text.strip()
@@ -74,6 +81,9 @@ class TradingEconomics(trafaret_thread.PatternThread):
             country_id = common.get_country_id(name_country, countries, None, False)
             if country_id:
                 count_row += 1
+                year = date.split('-')[0]
+                if year > max_year:
+                    max_year = year
                 st_query += "select {schema}.pw_his('{param_name}', '{date}', {country_id}, {value});\n". \
                     format(param_name=param_name, date=date + '-01', country_id=country_id,
                            value=value, schema=config.SCHEMA)
@@ -85,7 +95,7 @@ class TradingEconomics(trafaret_thread.PatternThread):
                     st_absent = st_absent + ', ' if st_absent else st_absent
                     st_absent = st_absent + name_country
         common.write_script_db(st_query, self.token)
-        return count_row, st_absent
+        return count_row, st_absent, max_year
 
     def check_import_metric(self):
         super(TradingEconomics, self).check_import_metric()
@@ -103,7 +113,7 @@ class TradingEconomics(trafaret_thread.PatternThread):
                         lws = self.load_html(data['code'])
                         if lws is None:
                             continue
-                        count_row, st_absent = self.import_data(lws, data['param_name'], countries=countries)
+                        count_row, st_absent, _ = self.import_data(lws, data['param_name'], countries=countries)
                         self.decode_finish_one_indicator(data, count_row, st_absent, t0)
 
     def load_list_indicators(self):
@@ -123,18 +133,17 @@ class TradingEconomics(trafaret_thread.PatternThread):
                 lws = self.load_html(data['code'])
                 if lws is None:
                     continue
-                count_row, st_absent = self.import_data(lws, data['param_name'], countries=countries)
+                count_row, st_absent, max_year = self.import_data(lws, data['param_name'], countries=countries)
                 if count_row and count_row != 0:
                     result += count_row
                     st = data['name_rus']
                     if st_absent:
                         st += ';\n не найдены страны: "' + st_absent + '"'
                     common.write_log_db(
-                        'import', self.source, st, page=count_row, td=time.time() - t0,
-                        law_id=str(index) + ' из ' + str(len(answer)),
-                        file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
-                            '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
-                        token_admin=self.token)
+                        '✔️import', SRC, st + '\n' + 'param_name="' + data['param_name'] + '; ' + data['object_code'] +
+                        f'"\nmax_year={max_year}',
+                        page=count_row, td=time.time() - t0,
+                        law_id=self.code_parser + '\n' + self.source + f'\n{index}/{len(answer)}')
         return result != 0
 
 
@@ -148,10 +157,10 @@ def import_indicators():
                 return unit['id']
 
     url = "https://ru.tradingeconomics.com/indicators"
-    session = requests.Session()
-    session.mount(url, http_adapter)
-    r = session.get(url, headers=headers, timeout=(100, 100))
     try:
+        session = requests.Session()
+        session.mount(url, http_adapter)
+        r = session.get(url, headers=headers, timeout=(100, 100))
         if r.ok:
             indicators = common.load_from_db('import', "sh_name='trading'")
             lws = BeautifulSoup(r.text, 'html.parser').find_all('li', class_='list-group-item')
@@ -179,8 +188,7 @@ def import_indicators():
         print(st)
 
 
-import_indicators()
-
-# TradingEconomics('trading', 'trading').start()
-# while True:
-#     time.sleep(5)
+if __name__ == '__main__':
+    TradingEconomics('tradingeconomics', 'trading').start()
+    while True:
+        time.sleep(5)

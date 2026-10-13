@@ -2,3 +2,5 @@
 venv_win
 *.xml
 *.iml
+__pycache__/
+.env

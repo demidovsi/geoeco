@@ -65,7 +65,7 @@ def load_html(url, source):
                 file_name=common.get_computer_name())
     except Exception as err:
         st = f"{err}\n" + url
-        common.write_log_db('Exception', source, st, td=time.time() - t, file_name=common.get_computer_name())
+        common.write_log_db('💥Exception', source, st, td=time.time() - t, file_name=common.get_computer_name())
 
 
 def load_phone_code():

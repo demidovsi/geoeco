@@ -36,7 +36,7 @@ class Wikipedia(trafaret_thread.PatternThread):
         except Exception as err:
             st = f"{err}\n" + url
             common.write_log_db(
-                'Exception', self.source, st, td=time.time() - t,
+                '💥Exception', self.source, st, td=time.time() - t,
                 file_name=common.get_computer_name(), token_admin=self.token)
 
     def load_list_indicators(self):

@@ -1,7 +1,7 @@
 import trafaret_thread
 import common
+from common import SRC
 import config
-import json
 import time
 import requests
 from bs4 import BeautifulSoup
@@ -46,38 +46,42 @@ class Numbeo(trafaret_thread.PatternThread):
                     st_absent = ''
                     if '{year}' in data['code']:
                         if data['object_code'] == 'countries':
-                            count_row, st_absent = self.make_years_countries(data, countries)
+                            count_row, st_absent, _ = self.make_years_countries(data, countries)
                         else:
-                            count_row, st_absent = self.make_years_cities(data, countries)
+                            count_row, st_absent, _ = self.make_years_cities(data, countries)
                     elif data['object_code'] == 'countries':
-                        count_row, st_absent = self.make_current_value(data['code'], data['param_name'], countries)
+                        count_row, st_absent, _ = self.make_current_value(data['code'], data['param_name'], countries)
                     if count_row:
                         self.decode_finish_one_indicator(data, count_row, st_absent, t0)
 
     def load_list_indicators(self):
         result = 0
         index = 0
+        self._rate_limited = False  # сброс флага с прошлого такта, иначе поток больше не загрузит данные
         answer = self.load_indicators(True)
         if answer:
-            countries = common.load_countries()
+            countries = common.load_countries(self.token)
             if countries is None:
                 return False
             for data in answer:
+                if getattr(self, '_rate_limited', False):
+                    break
                 index += 1
                 count_row = None
                 st_absent = ''
                 t0 = time.time()
 
+                max_year = ''
                 if '{year}' in data['code']:
                     if data['object_code'] == 'countries':
-                        count_row, st_absent = self.make_years_countries(data, countries)
+                        count_row, st_absent, max_year = self.make_years_countries(data, countries)
                     else:
-                        count_row, st_absent = self.make_years_cities(data, countries)
+                        count_row, st_absent, max_year = self.make_years_cities(data, countries)
                 elif data['object_code'] == 'countries':
-                    count_row, st_absent = self.make_current_value(data['code'], data['param_name'], countries)
+                    count_row, st_absent, max_year = self.make_current_value(data['code'], data['param_name'], countries)
 
                 # записать результат разбора импорта по одному индикатору
-                self.finish(count_row, st_absent, data, len(answer), index, time.time() - t0)
+                self.finish(count_row, st_absent, data, len(answer), index, time.time() - t0, max_year)
                 if count_row:
                     result += count_row
         return result != 0
@@ -85,9 +89,18 @@ class Numbeo(trafaret_thread.PatternThread):
     def make_current_value(self, url, param_name, countries):
         # месячная информация по странам для одного параметра (текущий месяц)
         date = common.st_month()
-        session = requests.Session()
-        session.mount(url, http_adapter)
-        r = session.get(url, timeout=(100, 100))
+        t = time.time()
+        try:
+            r = requests.get(url, timeout=(15, 30))
+        except Exception as err:
+            common.write_log_db('💥Exception', SRC, f"{err}\n{url}", td=time.time() - t,
+                                law_id=self.code_parser + '\n' + self.source)
+            return None, '', ''
+        if r.status_code == 429:
+            common.write_log_db('⚠️RateLimit', SRC, 'Rate limit exceeded\n' + r.text[:300],
+                                td=time.time() - t, law_id=self.code_parser + '\n' + self.source)
+            self._rate_limited = True
+            return None, '', ''
         if r.ok:
             st_query = ''
             st_absent = ''
@@ -101,44 +114,52 @@ class Numbeo(trafaret_thread.PatternThread):
                 name = unit[1].find('a').text
                 value = unit[2].text
                 country_id = common.get_country_id(name, countries, pr=False)
-                if country_id is None and name not in st_absent:
-                    st_absent = st_absent + ', ' if st_absent else st_absent
-                    st_absent += name
+                if country_id is None:
+                    if name not in st_absent:
+                        st_absent = st_absent + ', ' if st_absent else st_absent
+                        st_absent += name
                     continue
                 if value:
                     count_row += 1
                     st_query += "select {schema}.pw_his('{param_name}', '{date}', '{country_id}', {value});".format(
                         date=date, country_id=country_id, value=value, schema=config.SCHEMA, param_name=param_name)
             common.write_script_db(st_query, self.token)
-            return count_row, st_absent
+            return count_row, st_absent, date[:4]
         else:
-            return None, ''
+            return None, '', ''
 
-    def finish(self, count_row, st_absent, data, count, index, td):
+    def finish(self, count_row, st_absent, data, count, index, td, max_year):
+        own = f"{index}/{count}"
         if count_row:
             st = data['name_rus']
             if st_absent:
                 st += ';\n не найдены страны: "' + st_absent + '"'
             common.write_log_db(
-                'import', self.source + ' (' + data['period'] + ')', st, page=count_row, td=td,
-                law_id=str(index) + ' из ' + str(count),
-                file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
-                '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
-                token_admin=self.token)
+                '✔️import', SRC, st + '\n(' + data['period'] + ')\nparam_name="' + data['param_name'] + '; ' + data['object_code'] +
+                                 f'"\nmax_year={max_year}',
+                page=count_row, td=td,
+                law_id=self.code_parser + '\n' + self.source + own)
         else:
             common.write_log_db(
-                'Error', self.source + ' (' + data['period'] + ')', 'Не обнаружено данных', td=td,
-                law_id=str(index) + ' из ' + str(count),
-                file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
-                '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
-                token_admin=self.token)
+                '❌Error', SRC,
+                'Не обнаружено данных' + '\n(' + data['period'] + ')\nparam_name="' + data['param_name'] + '; ' + data['object_code'] +
+                                 f'"\nmax_year={max_year}',
+                td=td, law_id=self.code_parser + '\n' + self.source + own)
 
     def load_html(self, url):
         t = time.time()
-        session = requests.Session()
-        session.mount(url, http_adapter)
-        r = session.get(url, timeout=(100, 100))
         try:
+            r = requests.get(url, timeout=(15, 30))
+        except Exception as err:
+            common.write_log_db('💥Exception', SRC, f"{err}\n{url}", td=time.time() - t,
+                                law_id=self.code_parser + '\n' + self.source)
+            return None
+        try:
+            if r.status_code == 429:
+                common.write_log_db('⚠️RateLimit', SRC, 'Rate limit exceeded\n' + r.text[:300],
+                                    td=time.time() - t, law_id=self.code_parser + '\n' + self.source)
+                self._rate_limited = True
+                return False
             if r.ok:
                 lws = BeautifulSoup(r.text, 'html.parser'). \
                     find_all('table', class_='stripe row-border order-column compact')[0]. \
@@ -151,21 +172,22 @@ class Numbeo(trafaret_thread.PatternThread):
                 return lws
             else:
                 common.write_log_db(
-                    'Error', self.source, str(r.status_code) + '; ' + r.text, td=time.time() - t,
-                    file_name=common.get_computer_name(), token_admin=self.token)
+                    '❌Error', SRC, 'load_html\n' + str(r.status_code) + '; ' + r.text, td=time.time() - t,
+                    law_id=self.code_parser + '\n' + self.source)
         except Exception as err:
-            st = f"{err}\n" + url
-            common.write_log_db(
-                'Exception', self.source, st, td=time.time() - t,
-                file_name=common.get_computer_name(), token_admin=self.token)
+            common.write_log_db('💥Exception', SRC, f"{err}\n{url}", td=time.time() - t,
+                                law_id=self.code_parser + '\n' + self.source)
 
     def make_years_countries(self, data, countries):
         # годовая информация по странам для одного параметра (за интервал годов с 2012-го)
         st_absent = ''
         list_countries = list()
+        max_year = ''
         for year in range(2012, time.gmtime().tm_year + 1):
             url = data['code'].format(year=year)
             lws = self.load_html(url)
+            if lws is False:
+                break
             if lws:
                 date = '{year}-01-01'.format(year=year)
                 st_query = ''
@@ -173,9 +195,10 @@ class Numbeo(trafaret_thread.PatternThread):
                     name = lws[i + data['ind_name']]
                     value = lws[i + data['ind_value']]
                     country_id = common.get_country_id(name, countries, pr=False)
-                    if country_id is None and name not in st_absent:
-                        st_absent = st_absent + ', ' if st_absent else st_absent
-                        st_absent += name
+                    if country_id is None:
+                        if name not in st_absent:
+                            st_absent = st_absent + ', ' if st_absent else st_absent
+                            st_absent += name
                         continue  # эту строку пропускаем
                     if value and value != '-':
                         if country_id not in list_countries:
@@ -184,16 +207,20 @@ class Numbeo(trafaret_thread.PatternThread):
                             date=date, country_id=country_id, value=value, schema=config.SCHEMA,
                             param_name=data['param_name'])
                 common.write_script_db(st_query, self.token)
-        return len(list_countries), st_absent
+                max_year = str(year)
+        return len(list_countries), st_absent, max_year
 
     def make_years_cities(self, data, countries):
         # годовая информация по странам для одного параметра (за интервал годов с 2012-го)
         cities = common.load_cities(self.token)
         if cities is None:
-            return None, ''
+            return None, '', ''
         list_cities = list()
+        max_year = ''
         for year in range(2012, time.gmtime().tm_year + 1):
             lws = self.load_html(data['code'].format(year=year))
+            if lws is False:
+                break
             if lws:
                 date = '{year}-01-01'.format(year=year)
                 # print(date, len(lws))
@@ -236,4 +263,11 @@ class Numbeo(trafaret_thread.PatternThread):
                         st_sql = get_st_sql_cities(st_sql, date, city_id, value, data['param_name'])
                 # записать исторические данные
                 common.write_script_db(st_sql, token=self.token)
-        return len(list_cities), ''
+                max_year = str(year)
+        return len(list_cities), '', max_year
+
+
+if __name__ == '__main__':
+    Numbeo('Numbeo', 'numbeo').start()
+    while True:
+        time.sleep(5)

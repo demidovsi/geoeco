@@ -1,5 +1,6 @@
 import trafaret_thread
 import common
+from common import SRC
 import config
 import json
 import time
@@ -31,21 +32,20 @@ class Usa(trafaret_thread.PatternThread):
 
     def load_html(self, url):
         t = time.time()
-        session = requests.Session()
-        session.mount(url, http_adapter)
-        r = session.get(url, timeout=(100, 100))
+        wiki_headers = {
+            "User-Agent": "AlteroSmartBot/1.0 (demidovsi@gmail.com) Python-requests"
+        }
         try:
-            if r.ok:
-                return r.text
-            else:
-                common.write_log_db(
-                    'Error', self.source, str(r.status_code) + '; ' + r.text, td=time.time() - t,
-                    file_name=common.get_computer_name(), token_admin=self.token)
+            r = requests.get(url, headers=wiki_headers, timeout=(15, 30))
         except Exception as err:
-            st = f"{err}\n" + url
-            common.write_log_db(
-                'Exception', self.source, st, td=time.time() - t,
-                file_name=common.get_computer_name(), token_admin=self.token)
+            common.write_log_db('💥Exception', SRC, f"load_html\n{err}\n{url}", td=time.time() - t,
+                                law_id=self.code_parser + '\n' + self.source)
+            return None
+        if r.ok:
+            return r.text
+        else:
+            common.write_log_db('❌Error', SRC, 'load_html\n' + str(r.status_code) + '; ' + r.text[:300],
+                                td=time.time() - t, law_id=self.code_parser + '\n' + self.source)
 
     def load_list_indicators(self):
         result = 0
@@ -53,7 +53,7 @@ class Usa(trafaret_thread.PatternThread):
         answer = self.load_indicators(True)
         if answer:
             countries = common.load_from_db('countries', where="sh_name='United States'")
-            if countries is None:
+            if not countries:
                 print('Отсутствуют США')
                 return False
             country_id = countries[0]['id']
@@ -61,10 +61,9 @@ class Usa(trafaret_thread.PatternThread):
                 if data['object_code'] == 'provincies':
                     count_row = self.import_provinces(data, country_id)
                     common.write_log_db(
-                        'import', self.source, 'Штаты США', page=count_row, td=time.time() - t0,
-                        file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
-                        '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
-                        token_admin=self.token)
+                        '✔️import', SRC, 'Штаты США' + '\nparam_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
+                        page=count_row, td=time.time() - t0,
+                        law_id=self.code_parser + '\n' + self.source)
                     if count_row and count_row != 0:
                         result += count_row
         return result != 0
@@ -74,7 +73,7 @@ class Usa(trafaret_thread.PatternThread):
         if len(self.list_start_metric) == 0:
             return
         countries = common.load_from_db('countries', where="sh_name='United States'")
-        if countries is None:
+        if not countries:
             return
         country_id = countries[0]['id']
         answer = self.load_indicators(False)
@@ -98,7 +97,7 @@ class Usa(trafaret_thread.PatternThread):
         if lws:
             lws = BeautifulSoup(lws, 'html.parser').find_all('table')[0]. \
                 find_all('tbody')[0].find_all('tr')
-        if lws is None:
+        if not lws:
             return False
         lws_0 = lws[0]
         year1 = get_date(lws_0.find_all('th')[6].text)
@@ -108,31 +107,39 @@ class Usa(trafaret_thread.PatternThread):
         # обновить список провинций
         need_load = False
         provinces = common.load_provinces_db(country_id)
+        if provinces is None:
+            return False
         st_query = ''
         for data in lws:
-            unit = data.find_all('td')
-            if unit[0].text.strip().isdigit():
-                up, st = self.refresh_provinces(unit, country_id, provinces, year1, year2, year_area)
-                if up:
-                    need_load = True
-                st_query += st
+            try:
+                unit = data.find_all('td')
+                if unit[0].text.strip().isdigit():
+                    up, st = self.refresh_provinces(unit, country_id, provinces, year1, year2, year_area)
+                    if up:
+                        need_load = True
+                    st_query += st
+            except Exception as err:
+                print(f'{err}')
         common.write_script_db(st_query, self.token)
         if need_load:
-            provinces = common.load_provinces_db(country_id)
+            provinces = common.load_provinces_db(country_id) or provinces
 
         # обновить список городов
         cities = common.load_from_db('cities', 'country={country}'.format(country=country_id))
         st_query = ''
         for data in lws:
             unit = data.find_all('td')
-            if unit[0].text.strip().isdigit():
-                name = get_name(unit[2].text)
-                province_id = common.get_province_id(name, provinces, None, pr=False)
-                name_city = get_name(unit[15].text)
-                self.refresh_cities(name_city, country_id, province_id, cities)
-                name_city = get_name(unit[14].text)
-                up, st = self.refresh_cities(name_city, country_id, province_id, cities, capital=True)
-                st_query += st
+            try:
+                if unit[0].text.strip().isdigit():
+                    name = get_name(unit[2].text)
+                    province_id = common.get_province_id(name, provinces, None, pr=False)
+                    name_city = get_name(unit[15].text)
+                    self.refresh_cities(name_city, country_id, province_id, cities)
+                    name_city = get_name(unit[14].text)
+                    up, st = self.refresh_cities(name_city, country_id, province_id, cities, capital=True)
+                    st_query += st
+            except Exception as err:
+                print(f'{err}')
         common.write_script_db(st_query, self.token)
         return len(provinces)
 
@@ -153,7 +160,7 @@ class Usa(trafaret_thread.PatternThread):
             ans, ok, status_result = common.send_rest('v1/objects', 'PUT', params=params, token_user=self.token)
             if not ok:
                 print(ans)
-                return False
+                return False, ''
             else:
                 cities.append(values)
                 ans, ok, status_result = common.send_rest(
@@ -202,7 +209,7 @@ class Usa(trafaret_thread.PatternThread):
             ans, ok, status_result = common.send_rest('v1/objects', 'PUT', params=params, token_user=self.token)
             if not ok:
                 print(ans)
-                return False
+                return False, ''
             else:
                 provinces.append(values)
                 ans, ok, status_result = common.send_rest(
@@ -229,8 +236,9 @@ class Usa(trafaret_thread.PatternThread):
         return need_reload, st_query + st_nsi
 
 
-# Usa('США', 'usa').start()
-# while True:
-#     time.sleep(5)
+if __name__ == '__main__':
+    Usa('США', 'usa').start()
+    while True:
+        time.sleep(5)
 
 

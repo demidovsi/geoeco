@@ -139,7 +139,7 @@ class Countries(trafaret_thread.PatternThread):
         except Exception as err:
             st = f"{err}\n" + url
             common.write_log_db(
-                'Exception', self.source, st, td=time.time() - t,
+                '💥Exception', self.source, st, td=time.time() - t,
                 file_name=common.get_computer_name(), token_admin=self.token)
 
     def make_merkator(self, lws, countries, param_name, t1, caption):

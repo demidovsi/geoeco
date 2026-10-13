@@ -1,5 +1,7 @@
 import trafaret_thread
+import time
 import common
+from common import SRC
 import config
 import json
 import requests
@@ -20,7 +22,7 @@ class Courses(trafaret_thread.PatternThread):
         url = 'v1/select/{schema}/nsi_currencies'.format(schema=config.SCHEMA)
         currencies, is_ok, status_response = common.send_rest(url)
         if not is_ok:
-            common.write_log_db('ERROR', self.source, str(currencies), token_admin=self.token)
+            common.write_log_db('❌ERROR', SRC, 'load_courses\n'+ str(currencies), law_id=self.code_parser + '\n' + self.source)
             return
         currencies = json.loads(currencies)
         list_currencies = ''
@@ -55,10 +57,10 @@ class Courses(trafaret_thread.PatternThread):
                 if not common.write_script_db(st_query, token=self.token):
                     count_row = 0
             else:
-                common.write_log_db('ERROR', self.source, str(status), token_admin=self.token)
+                common.write_log_db('❌ERROR', SRC, 'load_courses\n' + str(status), law_id=self.code_parser + '\n' + self.source)
         else:
-            common.write_log_db('ERROR', self.source,
-                                str(response.status_code) + ': ' + response.text, token_admin=self.token)
+            common.write_log_db('❌ERROR', SRC,
+                                'load_courses\n' + str(response.status_code) + ': ' + response.text, law_id=self.code_parser + '\n' + self.source)
         return count_row != 0
 
     def work(self):
@@ -75,3 +77,7 @@ class Courses(trafaret_thread.PatternThread):
 # response = requests.request('GET', url, headers=headers, timeout=300, data=payload)
 # if response.ok:
 #     status = json.loads(response.text)
+if __name__ == '__main__':
+    Courses('Курсы валют', 'courses').start()
+    while True:
+        time.sleep(5)

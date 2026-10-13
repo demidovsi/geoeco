@@ -1,7 +1,7 @@
 Requests==2.31.0
 deep_translator
 xlrd
-bs4
+beautifulsoup4
 wbgapi
 geopy
 geocoder

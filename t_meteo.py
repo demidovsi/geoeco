@@ -2,6 +2,7 @@ import time
 
 import trafaret_thread
 import common
+from common import SRC
 import config
 import json
 import datetime
@@ -34,7 +35,7 @@ class Meteo(trafaret_thread.PatternThread):
                     "Accept": "application/json"
                 }
                 mes = '?lat=' + str(lat) + '&lon=' + str(lon) + '&appid=' + api_id + '&units=metric&exclude=hourly,daily,minutely,alerts'
-                response = requests.request(directive, url + mes, headers=headers)
+                response = requests.request(directive, url + mes, headers=headers, timeout=(15, 60))
                 return response.text, response.ok
                 # print(url + mes)
             except HTTPError as err:
@@ -46,7 +47,7 @@ class Meteo(trafaret_thread.PatternThread):
                 result = False
                 q = q + 1
         if not result:
-            common.write_log_db('ERROR', self.source, url, token_admin=self.token)
+            common.write_log_db('❌ERROR', SRC, url, law_id=self.code_parser + '\n' + self.source)
         return data, result
 
     def load_meteo(self):
@@ -72,16 +73,16 @@ class Meteo(trafaret_thread.PatternThread):
                                                                      val=str(val).replace("'", '"'), dt=st)
                 else:
                     common.write_log_db(
-                        'ERROR', self.source, 'lat=' + str(data['lat']) + '; lon=' + str(data['lon']) + '; ' +
+                        '❌ERROR', SRC, 'lat=' + str(data['lat']) + '; lon=' + str(data['lon']) + '; ' +
                         str(txt) + ': ' + par['url'] + '; Загружено {count} записей по погоде'.format(count=count_row),
-                        token_admin=self.token, td=time.time() - t0)
+                        law_id=self.code_parser + '\n' + self.source, td=time.time() - t0)
                     count_row = 0
                     break
 
             common.write_script_db(sql_text, token=self.token)
             self.finish_text = 'Загружено {count} записей по погоде'.format(count=count_row)
         else:
-            common.write_log_db('ERROR', self.source, par['url'], token_admin=self.token)
+            common.write_log_db('❌ERROR', SRC, par['url'], law_id=self.code_parser + '\n' + self.source)
         return count_row > 0
 
 
@@ -133,7 +134,7 @@ def calc_avr_day():
         schema=config.SCHEMA, today=common.st_today())
     days, is_ok, status = common.send_rest(url)
     if not is_ok:
-        common.write_log_db('ERROR', 'get_absent_date_avr_day: ' + url, str(days))
+        common.write_log_db('❌ERROR', SRC, 'get_absent_date_avr_day: ' + url + '\n' + str(days))
         return
     days = json.loads(days)
     for i in range(len(days)):
@@ -141,7 +142,7 @@ def calc_avr_day():
         url = "v1/select/{schema}/get_cities_day('{dt}')".format(schema=config.SCHEMA, dt=date)
         units, is_ok, status = common.send_rest(url)
         if not is_ok:
-            common.write_log_db('ERROR', 'get_cities_day: ' + url, str(days))
+            common.write_log_db('❌ERROR', SRC, 'get_cities_day: ' + url + '\n' + str(units))
             return
         units = json.loads(units)
         # средние значения, которые нужно рассчитать
@@ -160,7 +161,7 @@ def calc_avr_day():
                   "substring(dt::text from 1 for 10)='{date}'".format(schema=config.SCHEMA, date=date, city_id=city_id)
             values, is_ok, status = common.send_rest(url)  # значения погоды города
             if not is_ok:
-                common.write_log_db('ERROR', url, str(values))
+                common.write_log_db('❌ERROR', SRC, url + ' ' + str(values))
                 return
             values = json.loads(values)
             count = 0
@@ -172,8 +173,11 @@ def calc_avr_day():
                     if key in data:
                         value['count_' + key] = value['count_' + key] + 1
                         value[key] = value[key] + data[key]
-                        value['max_'+key] = max(data[key], value['max_'+key]) if value['max_'+key] else data[key]
-                        value['min_'+key] = min(data[key], value['min_'+key]) if value['min_'+key] else data[key]
+                        # is not None: нулевые значения (облачность, осадки) тоже участвуют в min/max
+                        value['max_'+key] = max(data[key], value['max_'+key]) if value['max_'+key] is not None else data[key]
+                        value['min_'+key] = min(data[key], value['min_'+key]) if value['min_'+key] is not None else data[key]
+            if count == 0:
+                continue  # нет замеров за день
             value['duration'] = value['duration'] / count
             for key in array_keys:
                 if value['count_' + key] != 0:
@@ -200,3 +204,9 @@ def calc_avr_day():
 
 # get_lat_lon_cities()
 # calc_avr_day()
+
+
+if __name__ == '__main__':
+    Meteo('Метео по городам', 'meteo').start()
+    while True:
+        time.sleep(5)

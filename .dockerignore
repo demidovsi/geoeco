@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+venv_win
+venv
+__pycache__
+source
+*.pdf
+*.xls
+*.csv
+*.json
+.env

@@ -83,7 +83,7 @@ def make_numbeo_table(lws, year, param_name, count, i_name, i_value):
         else:
             name_country = name[2].strip()
         name_city = name[0].strip()
-        city_id = common.get_city_id(name_city, cities)
+        city_id = common.get_city_id(name_city, cities, pr=False)
         if city_id is None:
             country_id = common.get_country_id(name_country, countries)
             if country_id:
@@ -104,7 +104,7 @@ def make_numbeo_table(lws, year, param_name, count, i_name, i_value):
         name = lws[i + i_name].split(',')
         name_city = name[0].strip()
         value = lws[i + i_value]
-        city_id = common.get_city_id(name_city, cities)
+        city_id = common.get_city_id(name_city, cities, pr=False)
         if city_id and value and value != '-':
             st_sql = get_st_sql_cities(st_sql, date, city_id, value, param_name)
     # записать исторические данные

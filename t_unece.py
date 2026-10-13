@@ -1,5 +1,6 @@
 import trafaret_thread
 import common
+from common import SRC
 import config
 import json
 import time
@@ -34,13 +35,15 @@ class Unece(trafaret_thread.PatternThread):
             t0 = time.time()
             for data in answer:
                 if data['param_name'] == indicator:
-                    count_row, st_absent = self.import_data(data, countries=countries)
+                    count_row, st_absent, max_year = self.import_data(data, countries=countries)
                     self.decode_finish_one_indicator(data, count_row, st_absent, t0)
 
     def import_data(self, data, countries):
         st_absent = ''
         url = self.par['compliment_txt']['url'].format(indicator=data['code'])
         lws = self.load_html(url)
+        if lws is None:
+            return 0, '', ''
         heads = lws.find_all('thead')[0].find_all('td')
         years = list()
         for i in range(1, len(heads)):
@@ -52,9 +55,10 @@ class Unece(trafaret_thread.PatternThread):
             tds = tr.find_all('td')
             country_name = tds[0].text
             country_id = common.get_country_id(country_name, countries, pr=False)
-            if country_id is None and country_name not in st_absent:
-                st_absent = st_absent + ', ' if st_absent else st_absent
-                st_absent += country_name
+            if country_id is None:
+                if country_name not in st_absent:
+                    st_absent = st_absent + ', ' if st_absent else st_absent
+                    st_absent += country_name
                 continue  # эту строку пропускаем
             for i in range(1, len(tds)):
                 value = tds[i].text
@@ -66,26 +70,25 @@ class Unece(trafaret_thread.PatternThread):
                         format(date=date, country_id=country_id, value=value, schema=config.SCHEMA,
                                param_name=data['param_name'])
         common.write_script_db(st_query, self.token)
-        return len(list_country), st_absent
+        max_year = max((y for y in years if y.strip().isdigit()), default='')
+        return len(list_country), st_absent, max_year
 
     def load_html(self, url):
         t = time.time()
-        session = requests.Session()
-        session.mount(url, http_adapter)
-        r = session.get(url, timeout=(100, 100))
         try:
+            session = requests.Session()
+            session.mount(url, http_adapter)
+            r = session.get(url, timeout=(100, 100))
             if r.ok:
                 lws = BeautifulSoup(r.text, 'html.parser').find_all('table')[0]
                 return lws
             else:
-                common.write_log_db(
-                    'Error', self.source, str(r.status_code) + '; ' + r.text, td=time.time() - t,
-                    file_name=common.get_computer_name(), token_admin=self.token)
+                common.write_log_db('❌Error', SRC, 'load_html\n' + str(r.status_code) + '; ' + r.text,
+                                    law_id= self.code_parser + '\n' + self.source, td=time.time() - t)
         except Exception as err:
             st = f"{err}\n" + url
-            common.write_log_db(
-                'Exception', self.source, st, td=time.time() - t,
-                file_name=common.get_computer_name(), token_admin=self.token)
+            common.write_log_db('💥Exception', SRC, 'load_html\n' + st,
+                                law_id=self.code_parser + '\n' + self.source, td=time.time() - t)
 
     def load_list_indicators(self):
         result = 0
@@ -99,33 +102,31 @@ class Unece(trafaret_thread.PatternThread):
             for data in answer:
                 index += 1
                 t0 = time.time()
-                count_row, st_absent = self.import_data(data, countries)
+                count_row, st_absent, max_year = self.import_data(data, countries)
                 if count_row:
                     result += count_row
                 # записать результат разбора импорта по одному индикатору
-                self.finish(count_row, st_absent, data, len(answer), index, time.time() - t0)
+                self.finish(count_row, st_absent, data, len(answer), index, time.time() - t0, max_year)
         return result != 0
 
-    def finish(self, count_row, st_absent, data, count, index, td):
+    def finish(self, count_row, st_absent, data, count, index, td, max_year):
+        own = f'\n{index}/{count}'
         if count_row:
             st = data['name_rus']
             if st_absent:
                 st += ';\n не найдены страны: "' + st_absent + '"'
             common.write_log_db(
-                'import', self.source + ' (' + data['period'] + ')', st, page=count_row, td=td,
-                law_id=str(index) + ' из ' + str(count),
-                file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
-                '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
-                token_admin=self.token)
+                '✔️import', SRC,
+                st + '\n' + '(' + data['period'] + ') ' + 'param_name="' + data['param_name'] + '; ' + data['object_code'] + f'"\nmax_year={max_year}',
+                law_id=self.code_parser + '\n' + self.source + own, page=count_row, td=td)
         else:
             common.write_log_db(
-                'Error', self.source + ' (' + data['period'] + ')', 'Не обнаружено данных', td=td,
-                law_id=str(index) + ' из ' + str(count),
-                file_name=common.get_computer_name() + '\n поток="' + self.code_parser +
-                '"; param_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
-                token_admin=self.token)
+                'Error', SRC, ' (' + data['period'] + ') - ' + 'Не обнаружено данных ' +
+                "\nparam_name='" + data['param_name'] + '; ' + data['object_code'] + "'",
+                law_id=self.code_parser + '\n' + self.source + own, td=td)
 
 
-# Unece('ООН', 'un').start()
-# while True:
-#     time.sleep(5)
+if __name__ == '__main__':
+    Unece('ООН', 'un').start()
+    while True:
+        time.sleep(5)

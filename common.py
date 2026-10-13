@@ -10,6 +10,10 @@ import re
 
 app_lang = 'ru'
 rights = ''
+SRC = 'geo_server'
+# (connect, read) таймауты HTTP-запросов: без них поток может зависнуть навсегда
+REST_TIMEOUT = (15, 600)
+URL_TIMEOUT = (15, 120)
 
 
 def send_rest(mes, directive="GET", params=None, lang='', token_user=None):
@@ -31,7 +35,8 @@ def send_rest(mes, directive="GET", params=None, lang='', token_user=None):
         js['params'] = params  # дополнительно заданные параметры
     try:
         headers = {"Accept": "application/json"}
-        response = requests.request(directive, config.URL + mes.replace(' ', '+'), headers=headers, json=js)
+        response = requests.request(directive, config.URL + mes.replace(' ', '+'), headers=headers, json=js,
+                                    timeout=REST_TIMEOUT)
     except HTTPError as err:
         txt = f'HTTP error occurred: {err}'
         return txt, False, None
@@ -46,16 +51,16 @@ def send_rest_url(mes, directive="GET", show_error=True):
     t = time.time()
     headers = {"Accept": "application/json"}
     try:
-        response = requests.request(directive, mes, headers=headers)
+        response = requests.request(directive, mes, headers=headers, timeout=URL_TIMEOUT)
     except HTTPError as err:
         txt = f'HTTP error occurred: {err}'
         if show_error:
-            print('ERROR', 'Ошибка запроса к URL ' + mes, txt + '; duration= %.3f' % t)
+            print('ERROR', 'Ошибка запроса к URL ' + mes, txt + '; duration= %.3f' % (time.time() - t))
         return txt, False, None
     except Exception as err:
         txt = f'Other error occurred: {err}'
         if show_error:
-            print('ERROR', 'Ошибка запроса к URL ' + mes, txt + '; duration= %.3f' % t)
+            print('ERROR', 'Ошибка запроса к URL ' + mes, txt + '; duration= %.3f' % (time.time() - t))
         return txt, False, None
     else:
         t = time.time() - t
@@ -91,7 +96,7 @@ def login(e_mail, password):
         headers = {"Accept": "application/json"}
         response = requests.request(
             'POST', config.URL + 'v1/login', headers=headers,
-            json={"params": txt_z}
+            json={"params": txt_z}, timeout=URL_TIMEOUT
             )
     except HTTPError as err:
         txt = f'HTTP error occurred: {err}'
@@ -374,7 +379,7 @@ def write_objects_db(object_code, values, token=None):
     ans, ok, status_result = send_rest('v1/objects', 'PUT', params=params, token_user=token)
     if not ok:
         print(ans)
-        write_log_db('Error', 'write_objects_db', status_result + ': ' + str(ans), file_name=get_computer_name(),
+        write_log_db('Error', 'write_objects_db', str(status_result) + ': ' + str(ans), file_name=get_computer_name(),
                      token_admin=token)
         return str(ans)
 
@@ -411,7 +416,16 @@ def get_param_name_by_indicator(indicator, source):
             return []
 
 
+_superadmin_cache = {'token': '', 'lang': '', 'expires': 0.0}
+_SUPERADMIN_TTL = 86400  # 24 часа
+
+
 def login_superadmin():
+    global _superadmin_cache
+    now = time.time()
+    if _superadmin_cache['token'] and now < _superadmin_cache['expires']:
+        return 'ok', True, _superadmin_cache['token'], _superadmin_cache['lang']
+
     result = False
     token_admin = ''
     lang_admin = ''
@@ -420,7 +434,7 @@ def login_superadmin():
         headers = {"Accept": "application/json"}
         response = requests.request(
             'POST', config.URL + 'v1/login', headers=headers,
-            json={"params": txt_z}
+            json={"params": txt_z}, timeout=URL_TIMEOUT
             )
     except HTTPError as err:
         txt = f'HTTP error occurred: {err}'
@@ -436,6 +450,7 @@ def login_superadmin():
                     token_admin = js["accessToken"]
                 if 'lang' in js:
                     lang_admin = js['lang']
+                _superadmin_cache = {'token': token_admin, 'lang': lang_admin, 'expires': now + _SUPERADMIN_TTL}
             else:
                 token = None
                 return txt, result, token, ''
@@ -469,11 +484,11 @@ def write_log_db(level, src, msg, page=None, file_name='', law_id='', td=None, w
         is_ok = True
     if is_ok:
         page = 'NULL' if page is None or page == '' else page
-        law_id = '' if law_id is None else law_id
-        file_name = '' if file_name is None else file_name
+        law_id = law_id if law_id else ''
+        file_name = file_name if file_name else get_computer_name()
         td = 'NULL' if td is None else float("%.1f" % td)
         st = "'{level}', '{source}', '{comment}', {page}, '{law_id}', '{file_name}', {td}".format(
-                schema=config.SCHEMA, level=level, source=src,
+                level=level, source=src,
                 comment=translate_to_base(msg.replace("'", '"')),
                 page=page, law_id=law_id,
                 file_name=translate_to_base(file_name), td=td
@@ -506,10 +521,44 @@ def get_duration(td):
     return result.replace('00:00:00', '')
 
 
-def get_computer_name():
-    st = socket.gethostbyname(socket.gethostname())
-    st = '' if st == '127.0.0.1' else st
-    return socket.gethostname() + '; ' + st
+_computer_name_cache: str = ''
+country: str = ''
+city: str = ''
+
+
+def get_computer_name() -> str:
+    """
+    Возвращает имя компьютера, его публичный IP-адрес, страну и город.
+
+    Для определения геолокации использует ip-api.com (бесплатно, без ключа).
+    Результат кешируется — HTTP-запрос выполняется только при первом вызове.
+
+    Returns:
+        Строка формата ``"hostname; ip_address; country; city"``.
+    """
+    global _computer_name_cache, country, city
+    if _computer_name_cache:
+        return _computer_name_cache
+
+    hostname = socket.gethostname()
+    try:
+        ip = socket.gethostbyname(hostname)
+    except socket.error:
+        ip = ''
+
+    if not country:
+        try:
+            response = requests.get('http://ip-api.com/json/', timeout=5)
+            if response.ok:
+                data = response.json()
+                ip = data.get('query', ip)
+                country = data.get('country', '')
+                city = data.get('city', '')
+        except Exception:
+            pass
+
+    _computer_name_cache = f"{hostname}; {ip}; {country}; {city}"
+    return _computer_name_cache
 
 
 def define_guest(ip_text, check_simple=True):
@@ -517,8 +566,9 @@ def define_guest(ip_text, check_simple=True):
         return '', '', True
     headers = {"Accept": "application/json"}
     try:
-        response = requests.request('GET', 'http://ip-api.com/json/{ip}?lang=ru'.format(ip=ip_text), headers=headers)
-    except HTTPError as err:
+        response = requests.request('GET', 'http://ip-api.com/json/{ip}?lang=ru'.format(ip=ip_text), headers=headers,
+                                    timeout=URL_TIMEOUT)
+    except Exception as err:
         txt = f'HTTP error occurred: {err}'
         print('ERROR', 'Ошибка запроса', txt)
         return txt, '', False
@@ -571,7 +621,7 @@ def local_utc(local: datetime) -> datetime:
 
 
 def is_number(s):
-    if re.match("^\d+?\.\d+?$", s) is None:
+    if re.match(r"^\d+?\.\d+?$", s) is None:
         return s.isdigit()
     return True
 

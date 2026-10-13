@@ -6,6 +6,7 @@ import time
 import common as cd
 import datetime
 import common
+from common import SRC
 
 obj = None
 
@@ -16,15 +17,16 @@ class ClearLogs(trafaret_thread.PatternThread):
 
     def work(self):
         super(ClearLogs, self).work()
+        t0 = time.time()
         if not self.make_login():
             return False  # не удалось сделать логин (ждем минуту)
         try:
             count_days = get_value_config_param("compliment", self.par)
             if count_days <= 0:
-                cd.write_log_db('ERROR', self.source,
+                cd.write_log_db('❌ERROR', SRC,
                                 "Ошибка в задании кол-ва дней хранения {count_days}; Повторим через минуту".format(
-                                    count_days=count_days),
-                                td=time.time() - self.t0)
+                                    count_days=count_days), law_id=self.code_parser + '\n' + self.source,
+                                td=time.time() - t0)
                 return False
             first_date = datetime.date.today() - datetime.timedelta(
                 days=count_days)
@@ -38,14 +40,17 @@ class ClearLogs(trafaret_thread.PatternThread):
                     start_count = answer['count_before']
                     finish_count = answer['count_after']
                     self.finish_text = ' Было строк ' + str(start_count) + '. Стало строк ' + str(finish_count) + \
-                        ". Кол-во дней хранения={count_days}".format(count_days=count_days)
+                        ".\nКол-во дней хранения={count_days}".format(count_days=count_days)
                     return True
+                cd.write_log_db('❌ERROR', SRC, 'delete_logs: неожиданный ответ ' + str(answer),
+                                law_id=self.code_parser + '\n' + self.source, td=time.time() - t0)
+                return False
             else:
-                cd.write_log_db('ERROR', self.source, str(answer) + "; Повторим через минуту",
-                                td=time.time() - self.t0)
+                cd.write_log_db('❌ERROR', SRC, str(answer) + "; Повторим через минуту", law_id=self.code_parser + '\n' + self.source,
+                                td=time.time() - t0)
                 return False
         except Exception as er:
-            cd.write_log_db('Exception', self.source, f"{er}; Повторим через минуту", td=time.time() - self.t0)
+            cd.write_log_db('💥Exception', SRC, f"{er}; Повторим через минуту", law_id=self.code_parser + '\n' + self.source, td=time.time() - t0)
             return False
 
     def get_description(self):
@@ -54,3 +59,9 @@ class ClearLogs(trafaret_thread.PatternThread):
     def get_compliment(self):
         return "Кол-во дней хранения={count_days}".format(
             count_days=int(get_value_config_param("compliment", self.par)))
+
+
+if __name__ == '__main__':
+    ClearLogs('Чистка лога', 'clear_logs').start()
+    while True:
+        time.sleep(5)
