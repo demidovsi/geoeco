@@ -1,0 +1,13 @@
+# Пакеты для разовых скриптов (text_pdf, t_owid, turkey, bigmac и др.) — только для локальной работы,
+# в Docker-образ не попадают. Установка: pip install -r requirements.txt -r requirements-dev.txt
+pandas
+numpy
+matplotlib
+duckdb
+pillow
+pytesseract
+owid-catalog
+wikipedia-api
+google-cloud-bigquery
+PyMuPDF
+pyflakes

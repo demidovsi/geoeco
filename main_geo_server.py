@@ -61,7 +61,7 @@ import t_usa
 # Отключённые потоки (при включении добавить соответствующий import):
 # t_statdata, t_countries, t_wikipedia, t_indonesia, t_spain, t_cyprus, t_georgia
 
-version = 'version 1.7 2026-10-13'
+version = 'version 1.8 2026-10-14'
 
 stop_event = threading.Event()
 

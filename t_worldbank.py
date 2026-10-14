@@ -3,9 +3,64 @@ import common
 from common import SRC
 import config
 import time
+import requests
 import wbgapi as wb
 
 obj = None
+
+# Индикаторы, удалённые из WDI (источник 2), Всемирный банк переносит в архив «WDI Database Archives»
+# (источник 57). В архиве у данных есть измерение «версия выпуска» (с 1989 г.), поэтому данные берутся
+# из последней версии, где у индикатора есть значения.
+ARCHIVE_URL = 'https://api.worldbank.org/v2/sources/57'
+_archive_version = {}  # код индикатора -> версия архива с данными (None — в архиве данных нет)
+
+
+def _get_json(url):
+    r = requests.get(url, timeout=(15, 180))
+    r.raise_for_status()
+    return r.json()
+
+
+def _archive_rows(code, version):
+    """Непустые значения индикатора в версии архива: список (economy, year, value)."""
+    rows = []
+    page, pages = 1, 1
+    while page <= pages:
+        d = _get_json('{url}/series/{code}/version/{version}/country/all/time/all?format=json&per_page=20000&page={page}'.
+                      format(url=ARCHIVE_URL, code=code, version=version, page=page))
+        if not isinstance(d, dict):
+            break  # индикатора нет и в архиве
+        pages = d.get('pages', 1)
+        for item in d.get('source', {}).get('data', []):
+            if item['value'] is None:
+                continue
+            var = {v['concept']: v for v in item['variable']}
+            rows.append((var['Country']['id'], var['Time']['value'], item['value']))
+        page += 1
+    return rows
+
+
+def fetch_archive(code):
+    """
+    Данные индикатора из последней версии архива WDI, где они есть.
+    Найденная версия кешируется до перезапуска сервиса, чтобы не перебирать архив каждый такт.
+    :return: (версия, [(economy, year, value)]) или (None, []), если в архиве данных нет
+    """
+    if code in _archive_version:
+        version = _archive_version[code]
+        return (version, _archive_rows(code, version)) if version else (None, [])
+    versions = _get_json(ARCHIVE_URL + '/version?format=json&per_page=1000')['source'][0]['concept'][0]['variable']
+    last_in_year = {}
+    for v in versions:  # версии упорядочены по возрастанию — остаётся последняя версия каждого года
+        last_in_year[v['id'][:4]] = v['id']
+    for year in sorted(last_in_year, reverse=True):
+        version = last_in_year[year]
+        rows = _archive_rows(code, version)
+        if rows:
+            _archive_version[code] = version
+            return version, rows
+    _archive_version[code] = None
+    return None, []
 
 
 class Wb(trafaret_thread.PatternThread):
@@ -115,6 +170,9 @@ class Wb(trafaret_thread.PatternThread):
             except Exception as err:
                 err_msg = f"{err}"
                 if 'not found' in err_msg.lower() or 'not valid' in err_msg.lower() or 'json decod' in err_msg.lower():
+                    result = self.import_from_archive(data, countries)
+                    if result is not None:
+                        return result
                     common.write_log_db('⚠️Warning', SRC, f"Данные недоступны: {err_msg}\n" + data['name_rus']+
                                         '\nparam_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
                                         law_id=self.code_parser + '\n' + self.source, token_admin=self.token)
@@ -128,6 +186,45 @@ class Wb(trafaret_thread.PatternThread):
                     list_country = []
                     max_year = ''
         return 0, err_msg, '', False, None
+
+    def import_from_archive(self, data, countries):
+        """
+        Загрузка индикатора, удалённого из WDI, из архива WDI Database Archives.
+        :return: результат как у import_data или None, если в архиве данных нет / архив недоступен
+        """
+        t0 = time.time()
+        try:
+            version, rows = fetch_archive(data['code'])
+        except Exception as err:
+            common.write_log_db('💥Exception', SRC, f"Архив WDI: {err}\n" + data['name_rus'] +
+                                '\nparam_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
+                                td=time.time() - t0, law_id=self.code_parser + '\n' + self.source,
+                                token_admin=self.token)
+            return None
+        if not rows:
+            return None
+        st_query = ''
+        list_country = list()
+        max_year = ''
+        for economy, year, value in rows:
+            # коды агрегатов (регионы, группы доходов) в справочнике стран отсутствуют — пропускаем молча
+            country_id = common.get_country_id(None, countries, code=economy, pr=False)
+            if country_id is None:
+                continue
+            if country_id not in list_country:
+                list_country.append(country_id)
+            if year > max_year:
+                max_year = year
+            st_query += "select {schema}.pw_his('{param_name}', '{year}-12-01', {country_id}, {value});\n". \
+                format(param_name=data['param_name'], year=year, country_id=country_id, value=value,
+                       schema=config.SCHEMA)
+        _, new_rows = common.write_his_db(st_query, 'his_countries_' + data['param_name'], token=self.token)
+        common.write_log_db('ℹ️archive', SRC, 'Индикатор удалён из WDI, загружен из архива WDI Database Archives, '
+                            'версия ' + version + '\n' + data['name_rus'] +
+                            '\nparam_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
+                            td=time.time() - t0, law_id=self.code_parser + '\n' + self.source,
+                            token_admin=self.token)
+        return len(list_country), '', max_year, True, new_rows
 
 
 if __name__ == '__main__':
