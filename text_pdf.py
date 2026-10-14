@@ -1,4 +1,4 @@
-import fitz  # PyMuPDF
+import pymupdf
 from PIL import Image
 import pytesseract
 import matplotlib.pyplot as plt
@@ -6,7 +6,7 @@ import numpy as np
 import io
 
 # Open the PDF and extract images
-doc = fitz.open('d16no2024.pdf')
+doc = pymupdf.open('d16no2024.pdf')
 images = []
 try:
     for page_num in range(len(doc)):
