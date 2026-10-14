@@ -311,33 +311,148 @@ def get_region_id(name, regions, pr=True):
         print(name, f'{er}')
 
 
-def get_city_id(name_city, cities, pr=True):
-    name_city = name_city.split('[')[0]
-    name_city = name_city.split('(')[0]
-    name_city = name_city.replace('<strong>', '').replace('</strong>', '').strip()
-    name_city = name_city.replace('NY', 'New York')
-    if name_city == 'Sevilla':
-        name_city = 'Seville'
-    if name_city == 'Málaga':
-        name_city = 'Malaga'
-    if name_city == 'Лимасол':
-        name_city = 'Лимассол'
-    if name_city == 'Тель-Авив-Яффо':
-        name_city = 'Тель-Авив'
-    name_city = name_city.split('<strong>')
-    if len(name_city) != 1:
-        name_city = name_city[1]
-    else:
-        name_city = name_city[0]
-    name_city = name_city.replace('NY', 'New York').split('</strong>')[0]
+CITY_REPLACE = {'Sevilla': 'Seville', 'Málaga': 'Malaga', 'Лимасол': 'Лимассол', 'Тель-Авив-Яффо': 'Тель-Авив'}
 
-    for city in cities:
-        if city['name_own'] is None:
-            city['name_own'] = ''
-        if name_city.upper() in [city['sh_name'].upper(), city['name_rus'].upper(), city['name_own'].upper()]:
-            return city['id']
-    if pr:
+
+def split_city_name(name_city):
+    """
+    Разбор названия города на основное и альтернативное (в скобках):
+    "Krakow (Cracow)" -> ("Krakow", "Cracow"); "Paris" -> ("Paris", "").
+    Убираются html-теги <strong> и сноски [..], применяются замены CITY_REPLACE.
+    """
+    name_city = (name_city or '').split('[')[0]
+    name_city = name_city.replace('<strong>', '').replace('</strong>', '').replace('NY', 'New York')
+    main, _, alt = name_city.partition('(')
+    main = main.strip()
+    alt = alt.split(')')[0].strip()
+    return CITY_REPLACE.get(main, main), CITY_REPLACE.get(alt, alt)
+
+
+def city_names(city):
+    """Варианты названия города из справочника (в верхнем регистре) для сравнения."""
+    names = set()
+    for key in ('sh_name', 'name_rus', 'name_own'):
+        value = city.get(key)
+        if not value:
+            continue
+        names.add(value.strip().upper())
+        # в справочнике есть города, записанные с альтернативным названием в скобках: "Krakow (Cracow)"
+        for part in split_city_name(value):
+            if part:
+                names.add(part.upper())
+    return names
+
+
+def find_city_id(name_city, cities, country_id=None):
+    """
+    Поиск id города: сначала по основному названию, затем по альтернативному (в скобках).
+    Сравнение с sh_name, name_rus, name_own (и их частями до/в скобках).
+    :param country_id: если задан, поиск только среди городов этой страны
+    :return: id города или None
+    """
+    if country_id is not None:
+        cities = [city for city in cities if city.get('country') == country_id]
+    for name in split_city_name(name_city):
+        if not name:
+            continue
+        name = name.upper()
+        for city in cities:
+            if name in city_names(city):
+                return city['id']
+
+
+def get_city_id(name_city, cities, pr=True, country_id=None):
+    city_id = find_city_id(name_city, cities, country_id)
+    if city_id is None and pr:
         print('Absent city', name_city)
+    return city_id
+
+
+def parse_numbeo_city(text):
+    """
+    Название города в таблицах Numbeo: "City, Country" или "City, State, Country".
+    :return: (название города, название страны)
+    """
+    name = text.split(',')
+    return name[0].strip(), name[-1].strip()
+
+
+def numbeo_cities_ids(names, countries, cities, token, created):
+    """
+    id городов для строк таблицы Numbeo; отсутствующие в справочнике города создаются.
+    Поиск — только среди городов страны из строки Numbeo.
+    Новый город: sh_name — основное название (без скобок), name_own — альтернативное, name_rus — перевод основного.
+    :param names: названия из таблицы ("Krakow (Cracow), Poland")
+    :param cities: справочник городов (дополняется созданными городами)
+    :param created: словарь (country_id, основное название) -> id, созданные за запуск, чтобы не создавать повторно
+    :return: список id городов (None — город не определён) в порядке names
+    """
+    result = []
+    for text in names:
+        name_city, name_country = parse_numbeo_city(text)
+        country_id = get_country_id(name_country, countries, pr=False)
+        if country_id is None:
+            result.append(None)
+            continue
+        city_id = find_city_id(name_city, cities, country_id)
+        if city_id is None and '(' in name_country:
+            # "Hong Kong (China)": город может числиться за страной в скобках
+            parent_id = get_country_id(name_country.split('(')[1].split(')')[0], countries, pr=False)
+            if parent_id is not None:
+                city_id = find_city_id(name_city, cities, parent_id)
+        main, alt = split_city_name(name_city)
+        key = (country_id, main.upper())
+        if city_id is None:
+            city_id = created.get(key)
+        if city_id is None and main:
+            city_id = create_city(country_id, main, alt, cities, token)
+            if city_id is not None:
+                created[key] = city_id
+        result.append(city_id)
+    return result
+
+
+def create_city(country_id, main, alt, cities, token):
+    """
+    Создание города в справочнике nsi_cities. PUT v1/objects возвращает только 'ok',
+    поэтому id берётся из перечитанного справочника (страна + sh_name).
+    Перед созданием справочник перечитывается — город мог появиться (другой поток / прошлый запуск).
+    :return: id города или None при ошибке
+    """
+    from deep_translator import GoogleTranslator
+
+    def find_created(list_cities):
+        for city in list_cities:
+            if city.get('country') == country_id and (city.get('sh_name') or '').strip().upper() == main.upper():
+                return city
+    fresh = load_cities(token)
+    if fresh is None:
+        return None
+    city = find_created(fresh)
+    if city is None:
+        values = {'country': country_id, 'sh_name': main}
+        if alt:
+            values['name_own'] = alt
+        try:
+            values['name_rus'] = GoogleTranslator(source='en', target='ru').translate(main)
+        except Exception as err:
+            print('translate', main, err)
+        params = {"schema_name": config.SCHEMA, "object_code": "cities", "values": values}
+        ans, ok, status_result = send_rest('v1/objects', 'PUT', params=params, token_user=token)
+        if not ok:
+            write_log_db('ERROR', 'create_city', str(status_result) + ': ' + str(ans)[:300] + '; ' + main,
+                         token_admin=token)
+            return None
+        fresh = load_cities(token)
+        if fresh is None:
+            return None
+        city = find_created(fresh)
+        if city is None:
+            write_log_db('ERROR', 'create_city', 'город создан, но не найден в справочнике: ' + main,
+                         token_admin=token)
+            return None
+    cities[:] = fresh  # справочник вызывающего актуализируется на месте
+    return city['id']
 
 
 def load_cities(token=None):

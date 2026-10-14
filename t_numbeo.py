@@ -6,7 +6,6 @@ import time
 import requests
 from bs4 import BeautifulSoup
 from requests.adapters import HTTPAdapter
-from deep_translator import GoogleTranslator
 
 http_adapter = HTTPAdapter(max_retries=10)
 obj = None
@@ -25,6 +24,7 @@ class Numbeo(trafaret_thread.PatternThread):
 
     def __init__(self, source, code_function):
         super(Numbeo, self).__init__(source, code_function)
+        self.created_cities = dict()  # (country_id, название) -> id городов, созданных за запуск
 
     def work(self):
         super(Numbeo, self).work()
@@ -233,39 +233,13 @@ class Numbeo(trafaret_thread.PatternThread):
             if lws:
                 date = '{year}-01-01'.format(year=year)
                 # print(date, len(lws))
-                need_reload = False
-                # проверим и запишем новые города
-                for i in range(0, len(lws), data['column_count']):
-                    name = lws[i + data['ind_name']].split(',')
-                    if len(name) == 2:
-                        name_country = name[1].strip()
-                    else:
-                        name_country = name[2].strip()
-                    name_city = name[0].strip()
-                    city_id = common.get_city_id(name_city, cities)
-                    if city_id is None:
-                        country_id = common.get_country_id(name_country, countries)
-                        if country_id:
-                            params = dict()
-                            params["country"] = country_id
-                            params['sh_name'] = name_city
-                            params['name_rus'] = GoogleTranslator(source='en', target='ru').translate(name_city)
-                            # записать новый город
-                            params = {"schema_name": config.SCHEMA, "object_code": "cities", "values": params}
-                            ans, ok, status_result = common.send_rest('v1/objects', 'PUT', params=params,
-                                                                      token_user=self.token)
-                            if not ok:
-                                print(ans)
-                            else:
-                                need_reload = True
-                if need_reload:
-                    cities = common.load_cities(self.token)  # прочитать новый список
+                rows = range(0, len(lws), data['column_count'])
+                # поиск городов (среди городов страны) и создание отсутствующих
+                ids = common.numbeo_cities_ids([lws[i + data['ind_name']] for i in rows], countries, cities,
+                                               self.token, self.created_cities)
                 st_sql = ''
-                for i in range(0, len(lws), data['column_count']):
-                    name = lws[i + data['ind_name']].split(',')
-                    name_city = name[0].strip()
+                for i, city_id in zip(rows, ids):
                     value = lws[i + data['ind_value']]
-                    city_id = common.get_city_id(name_city, cities)
                     if city_id and value and value != '-':
                         if city_id not in list_cities:
                             list_cities.append(city_id)

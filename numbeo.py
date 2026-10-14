@@ -4,12 +4,12 @@ import config
 from bs4 import BeautifulSoup
 import requests
 from requests.adapters import HTTPAdapter
-from deep_translator import GoogleTranslator
 import json
 import trafaret_thread
 
 http_adapter = HTTPAdapter(max_retries=10)
 obj = None
+created_cities = dict()  # (country_id, название) -> id городов, созданных за запуск
 
 
 def make_numbeo_crime(lws, year, param_name, count, i_name, i_value):
@@ -74,37 +74,11 @@ def make_numbeo_table(lws, year, param_name, count, i_name, i_value):
     date = '{year}-01-01'.format(year=year)
     print(date, len(lws))
     st_sql = ''
-    need_reload = False
-    # проверим и запишем новые города
-    for i in range(0, len(lws), count):
-        name = lws[i + i_name].split(',')
-        if len(name) == 2:
-            name_country = name[1].strip()
-        else:
-            name_country = name[2].strip()
-        name_city = name[0].strip()
-        city_id = common.get_city_id(name_city, cities, pr=False)
-        if city_id is None:
-            country_id = common.get_country_id(name_country, countries)
-            if country_id:
-                params = dict()
-                params["country"] = country_id
-                params['sh_name'] = name_city
-                params['name_rus'] = GoogleTranslator(source='en', target='ru').translate(name_city)
-                # записать новый город
-                params = {"schema_name": config.SCHEMA, "object_code": "cities", "values": params}
-                ans, ok, status_result = common.send_rest('v1/objects', 'PUT', params=params, token_user=token)
-                if not ok:
-                    print(ans)
-                else:
-                    need_reload = True
-    if need_reload:
-        cities = common.load_cities()  # прочитать новый список
-    for i in range(0, len(lws), count):
-        name = lws[i + i_name].split(',')
-        name_city = name[0].strip()
+    rows = range(0, len(lws), count)
+    # поиск городов (среди городов страны) и создание отсутствующих
+    ids = common.numbeo_cities_ids([lws[i + i_name] for i in rows], countries, cities, token, created_cities)
+    for i, city_id in zip(rows, ids):
         value = lws[i + i_value]
-        city_id = common.get_city_id(name_city, cities, pr=False)
         if city_id and value and value != '-':
             st_sql = get_st_sql_cities(st_sql, date, city_id, value, param_name)
     # записать исторические данные
