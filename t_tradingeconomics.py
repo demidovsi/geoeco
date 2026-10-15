@@ -108,13 +108,17 @@ class TradingEconomics(trafaret_thread.PatternThread):
         if answer:
             for indicator in self.list_start_metric:
                 t0 = time.time()
+                found = False
                 for data in answer:
                     if data['object_code'] == 'countries' and data['param_name'] == indicator:
+                        found = True
                         lws = self.load_html(data['code'])
                         if lws is None:
+                            self.decode_finish_one_indicator(data, 0, 'страница не загружена', t0)
                             continue
                         count_row, st_absent, _, new_rows = self.import_data(lws, data['param_name'], countries=countries)
                         self.decode_finish_one_indicator(data, count_row, st_absent, t0, new_rows)
+                self.not_found_indicator(indicator, found)
 
     def load_list_indicators(self):
         result = 0

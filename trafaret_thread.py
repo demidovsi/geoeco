@@ -172,16 +172,43 @@ class PatternThread(threading.Thread):
         for data in answer:
             self.list_start_metric.append(data['indicator'])
         if len(self.list_start_metric) != 0:
+            # до первого такта работы (поток ждёт плановый запуск) токена ещё нет - без него не считаются новые строки
+            if not self.token:
+                self.make_login()
             sql_query = "delete from {schema}.list_start_metric where sh_name='{sh_name}'; select 1;".format(
                 schema=config.SCHEMA, sh_name=self.code_parser)
             common.write_script_db(sql_query, token=self.token)
+            st = ', '.join(self.list_start_metric)
+            if type(self).check_import_metric is PatternThread.check_import_metric:
+                # поток не умеет загружать отдельный индикатор - заявки только удаляются
+                common.write_log_db('⚠️Warning', SRC, 'Поток не выполняет загрузку по запросу, заявки удалены: ' + st,
+                                    law_id=self.code_parser + '\n' + self.source, token_admin=self.token)
+                self.list_start_metric = []
+            else:
+                common.write_log_db('⏳import', SRC, '(по запросу) начата загрузка: ' + st,
+                                    law_id=self.code_parser + '\n' + self.source, token_admin=self.token)
 
     def add_new_rows(self, new_rows):
         """Накопить количество новых значений за такт (для итоговой записи 🕒 sleep)."""
         if new_rows is not None:
             self.new_total = (self.new_total or 0) + new_rows
 
+    def not_found_indicator(self, indicator, found):
+        """Запись в лог, если заказанный индикатор не найден в nsi_import потока (с подходящим object_code)."""
+        if not found:
+            common.write_log_db(
+                '⚠️import', SRC, '(по запросу)\nиндикатор не найден в nsi_import (sh_name=' + self.code_parser +
+                ') или код объектов не поддерживается потоком\nparam_name="' + indicator + '"',
+                law_id=self.code_parser + '\n' + self.source, token_admin=self.token)
+
     def decode_finish_one_indicator(self, data, count_row, st_absent, t0, new_rows=None):
+        if not count_row:
+            common.write_log_db(
+                '⚠️import', SRC, '(по запросу)\n' + data['name_rus'] +
+                '\nданные не загружены (нет значений или объекты не найдены)' +
+                (';\n' + st_absent if st_absent else '') +
+                '\nparam_name="' + data['param_name'] + '; ' + data['object_code'] + '"',
+                td=time.time() - t0, law_id=self.code_parser + '\n' + self.source, token_admin=self.token)
         if count_row and count_row != 0:
             st = data['name_rus']
             if st_absent:

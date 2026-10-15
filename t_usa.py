@@ -82,11 +82,13 @@ class Usa(trafaret_thread.PatternThread):
         if answer:
             for indicator in self.list_start_metric:
                 t0 = time.time()
+                found = False
                 for data in answer:
-                    if data['param_name'] == indicator:
-                        if data['object_code'] == 'provincies':
-                            count_row, new_rows = self.import_provinces(data, country_id)
-                            self.decode_finish_one_indicator(data, count_row, '', t0, new_rows)
+                    if data['param_name'] == indicator and data['object_code'] == 'provincies':
+                        found = True
+                        count_row, new_rows = self.import_provinces(data, country_id)
+                        self.decode_finish_one_indicator(data, count_row, '', t0, new_rows)
+                self.not_found_indicator(indicator, found)
 
     def import_provinces(self, elem, country_id):
         """

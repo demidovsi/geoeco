@@ -41,9 +41,11 @@ class Numbeo(trafaret_thread.PatternThread):
         if answer is None:
             return
         for indicator in self.list_start_metric:
+            found = False
             for data in answer:  # цикл по индикаторам
                 t0 = time.time()
                 if data['param_name'] == indicator:  # индикатор заказан
+                    found = True
                     count_row = None
                     st_absent = ''
                     if '{year}' in data['code']:
@@ -53,8 +55,8 @@ class Numbeo(trafaret_thread.PatternThread):
                             count_row, st_absent, _ = self.make_years_cities(data, countries)
                     elif data['object_code'] == 'countries':
                         count_row, st_absent, _ = self.make_current_value(data['code'], data['param_name'], countries)
-                    if count_row:
-                        self.decode_finish_one_indicator(data, count_row, st_absent, t0)
+                    self.decode_finish_one_indicator(data, count_row, st_absent, t0)
+            self.not_found_indicator(indicator, found)
 
     def load_list_indicators(self):
         result = 0

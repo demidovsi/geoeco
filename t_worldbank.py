@@ -6,6 +6,9 @@ import time
 import requests
 import wbgapi as wb
 
+# у wbgapi нет тайм-аута по умолчанию: при зависании API поток (и его очередь заявок) ждал бы бесконечно
+wb.get_options['timeout'] = (15, 120)
+
 obj = None
 
 # Индикаторы, удалённые из WDI (источник 2), Всемирный банк переносит в архив «WDI Database Archives»
@@ -83,10 +86,14 @@ class Wb(trafaret_thread.PatternThread):
         if answer:
             for indicator in self.list_start_metric:
                 t0 = time.time()
+                found = False
                 for data in answer:
-                    if data['param_name'] == indicator:
+                    # wb пишет значения в историю стран - другие коды объектов не загружаются
+                    if data['param_name'] == indicator and data['object_code'] == 'countries':
+                        found = True
                         count_row, st_absent, max_year, _, new_rows = self.import_data(data, countries=countries)
                         self.decode_finish_one_indicator(data, count_row, st_absent, t0, new_rows)
+                self.not_found_indicator(indicator, found)
 
     def load_list_indicators(self):
         result = 0

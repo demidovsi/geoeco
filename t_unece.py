@@ -33,10 +33,13 @@ class Unece(trafaret_thread.PatternThread):
             return
         for indicator in self.list_start_metric:
             t0 = time.time()
+            found = False
             for data in answer:
                 if data['param_name'] == indicator:
+                    found = True
                     count_row, st_absent, max_year, new_rows = self.import_data(data, countries=countries)
                     self.decode_finish_one_indicator(data, count_row, st_absent, t0, new_rows)
+            self.not_found_indicator(indicator, found)
 
     def import_data(self, data, countries):
         st_absent = ''

@@ -509,6 +509,10 @@ def write_his_db(st_query, tables, token=None):
         return True, 0
     if isinstance(tables, str):
         tables = [tables]
+    if token is None:  # без токена v2/execute отвечает "No token" и новые строки не считаются
+        _, is_ok, token, _ = login_superadmin()
+        if not is_ok:
+            token = None
     before = [count_rows(table, token) for table in tables]
     is_ok = write_script_db(st_query, token=token)
     if None in before:
